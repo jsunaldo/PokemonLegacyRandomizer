@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pokemon Legacy Randomizer</title>
+<style>
+  :root {
+    --bg: #0a0a12;
+    --panel: #10111e;
+    --card: #14162a;
+    --border: #1e2440;
+    --text: #dce3f0;
+    --muted: #6a7a99;
+    --crystal-accent: #e94560;
+    --yellow-accent: #f5c518;
+    --emerald-accent: #4caf7d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 10px;
+  }
+  .pokeball {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: linear-gradient(180deg, #e94560 50%, #dce3f0 50%);
+    border: 3px solid #243561;
+    position: relative; flex-shrink: 0;
+  }
+  .pokeball::before {
+    content: ""; position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--text); border: 2px solid #243561;
+  }
+  .pokeball::after {
+    content: ""; position: absolute;
+    top: calc(50% - 1.5px); left: 0; right: 0; height: 3px;
+    background: #243561;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  .subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 52px;
+    text-align: center;
+  }
+
+  .game-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    width: 100%;
+    max-width: 960px;
+    margin-bottom: 40px;
+  }
+
+  .game-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 24px 28px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color .18s, transform .12s, box-shadow .18s;
+  }
+  .game-card:hover {
+    transform: translateY(-3px);
+  }
+  .game-card.crystal {
+    border-color: rgba(233,69,96,.25);
+  }
+  .game-card.crystal:hover {
+    border-color: var(--crystal-accent);
+    box-shadow: 0 8px 32px rgba(233,69,96,.2);
+  }
+  .game-card.yellow {
+    border-color: rgba(245,197,24,.2);
+  }
+  .game-card.yellow:hover {
+    border-color: var(--yellow-accent);
+    box-shadow: 0 8px 32px rgba(245,197,24,.18);
+  }
+  .game-card.emerald {
+    border-color: rgba(76,175,125,.2);
+  }
+  .game-card.emerald:hover {
+    border-color: var(--emerald-accent);
+    box-shadow: 0 8px 32px rgba(76,175,125,.18);
+  }
+
+  .game-icon {
+    font-size: 52px;
+    line-height: 1;
+  }
+
+  .game-name {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    text-align: center;
+  }
+  .game-card.crystal .game-name { color: #f07080; }
+  .game-card.yellow  .game-name { color: #f5c518; }
+  .game-card.emerald .game-name { color: #4caf7d; }
+
+  .game-desc {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.55;
+  }
+
+  .game-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-top: 2px;
+  }
+  .game-card.crystal .game-badge {
+    background: rgba(233,69,96,.15);
+    color: var(--crystal-accent);
+    border: 1px solid rgba(233,69,96,.3);
+  }
+  .game-card.yellow .game-badge {
+    background: rgba(245,197,24,.12);
+    color: var(--yellow-accent);
+    border: 1px solid rgba(245,197,24,.3);
+  }
+  .game-card.emerald .game-badge {
+    background: rgba(76,175,125,.12);
+    color: var(--emerald-accent);
+    border: 1px solid rgba(76,175,125,.3);
+  }
+
+  .launch-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 0 0;
+    font-size: 13px;
+    font-weight: 600;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+  .game-card.crystal .launch-btn { color: var(--crystal-accent); }
+  .game-card.yellow  .launch-btn { color: var(--yellow-accent); }
+  .game-card.emerald .launch-btn { color: var(--emerald-accent); }
+
+  .footer {
+    font-size: 11.5px;
+    color: var(--muted);
+    text-align: center;
+    max-width: 440px;
+    line-height: 1.6;
+  }
+  .footer a { color: inherit; }
+</style>
+</head>
+<body>
+
+<div class="logo-row">
+  <div class="pokeball"></div>
+  <h1>Pokemon Legacy Randomizer</h1>
+</div>
+<p class="subtitle">Choose which ROM hack you want to randomize</p>
+
+<div class="game-grid">
+
+  <!-- Crystal Legacy -->
+  <a class="game-card crystal" href="/crystal">
+    <div class="game-icon">💎</div>
+    <div>
+      <div class="game-name">Crystal Legacy</div>
+      <div class="game-badge">Gen 1 &amp; 2 · GBC</div>
+    </div>
+    <div class="game-desc">
+      Official Crystal Legacy ROM hack.<br>
+      251 Pokémon, Gen 2 mechanics,<br>
+      full feature set.
+    </div>
+    <div class="launch-btn">Open Randomizer →</div>
+  </a>
+
+  <!-- Yellow Legacy -->
+  <a class="game-card yellow" href="/yellow">
+    <div class="game-icon">⚡</div>
+    <div>
+      <div class="game-name">Yellow Legacy</div>
+      <div class="game-badge">Gen 1 · GB</div>
+    </div>
+    <div class="game-desc">
+      SmithPlaysPokemon's Yellow Legacy<br>
+      ROM hack. 151 Pokémon,<br>
+      Gen 1 mechanics.
+    </div>
+    <div class="launch-btn">Open Randomizer →</div>
+  </a>
+
+  <!-- Emerald Legacy -->
+  <a class="game-card emerald" href="/emerald">
+    <div class="game-icon">💚</div>
+    <div>
+      <div class="game-name">Emerald Legacy</div>
+      <div class="game-badge">Gen 1–3 · GBA</div>
+    </div>
+    <div class="game-desc">
+      cRz-Shadows's Emerald Legacy<br>
+      ROM hack. 386 Pokémon,<br>
+      Gen 3 mechanics.
+    </div>
+    <div class="launch-btn">Open Randomizer →</div>
+  </a>
+
+</div>
+
+<p class="footer">
+  Each randomizer modifies the ASM source files directly and optionally
+  compiles a playable ROM. Requires RGBDS and GNU Make to build.
+</p>
+
+</body>
+</html>

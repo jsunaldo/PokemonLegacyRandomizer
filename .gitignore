@@ -1,0 +1,19 @@
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# macOS
+.DS_Store
+__MACOSX/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# App bundles (distributed as release assets, not committed)
+*.app/
+
+# Release zips
+*.zip
