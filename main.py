@@ -678,9 +678,12 @@ def _run_randomizer_yellow(data: dict):
         log("=" * 56)
 
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from parser_yellow import YellowLegacyParser
-        from randomizer_engine_yellow import YellowRandomizerEngine, YellowRandomizerSettings
-        from writer_yellow import YellowSourceWriter
+        try:
+            from parser_yellow import YellowLegacyParser
+            from randomizer_engine_yellow import YellowRandomizerEngine, YellowRandomizerSettings
+            from writer_yellow import YellowSourceWriter
+        except ImportError:
+            raise RuntimeError("Yellow Legacy randomizer modules are not available in this build.")
 
         # ── Parse ──────────────────────────────────────────────────────────────
         log("\nParsing source files...")
@@ -1018,9 +1021,12 @@ def _run_randomizer_emerald(data: dict):
         log("=" * 56)
 
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from parser_emerald import EmeraldLegacyParser
-        from randomizer_engine_emerald import EmeraldRandomizerEngine, EmeraldRandomizerSettings
-        from writer_emerald import EmeraldSourceWriter
+        try:
+            from parser_emerald import EmeraldLegacyParser
+            from randomizer_engine_emerald import EmeraldRandomizerEngine, EmeraldRandomizerSettings
+            from writer_emerald import EmeraldSourceWriter
+        except ImportError:
+            raise RuntimeError("Emerald Legacy randomizer modules are not available in this build.")
 
         # ── Parse ──────────────────────────────────────────────────────────────
         log("\nParsing source files...")

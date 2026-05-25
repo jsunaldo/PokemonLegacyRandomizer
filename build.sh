@@ -11,7 +11,9 @@ echo "=== Cleaning previous build ==="
 rm -rf build dist "${APP_NAME}.spec"
 
 echo "=== Building .app with PyInstaller ==="
-pyinstaller \
+# Use full path since ~/Library/Python/3.9/bin may not be on PATH
+PYINSTALLER="${HOME}/Library/Python/3.9/bin/pyinstaller"
+"${PYINSTALLER}" \
   --name "${APP_NAME}" \
   --windowed \
   --add-data "static:static" \

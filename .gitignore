@@ -1,3 +1,9 @@
+# Unreleased game modules
+*_emerald.py
+*_yellow.py
+static/emerald.html
+static/yellow.html
+
 # PyInstaller build artifacts
 build/
 dist/

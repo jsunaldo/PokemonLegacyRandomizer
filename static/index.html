@@ -150,15 +150,30 @@
     color: var(--crystal-accent);
     border: 1px solid rgba(233,69,96,.3);
   }
-  .game-card.yellow .game-badge {
-    background: rgba(245,197,24,.12);
-    color: var(--yellow-accent);
-    border: 1px solid rgba(245,197,24,.3);
-  }
+  .game-card.yellow .game-badge,
   .game-card.emerald .game-badge {
-    background: rgba(76,175,125,.12);
-    color: var(--emerald-accent);
-    border: 1px solid rgba(76,175,125,.3);
+    background: rgba(106,122,153,.1);
+    color: var(--muted);
+    border: 1px solid rgba(106,122,153,.25);
+  }
+
+  .coming-soon-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px dashed rgba(106,122,153,.4);
+    border-radius: 20px;
+    padding: 3px 12px;
+    margin-top: 6px;
+    display: inline-block;
+  }
+
+  .game-card.coming-soon {
+    opacity: .45;
+    cursor: default;
+    pointer-events: none;
   }
 
   .launch-btn {
@@ -213,7 +228,7 @@
   </a>
 
   <!-- Yellow Legacy -->
-  <a class="game-card yellow" href="/yellow">
+  <div class="game-card yellow coming-soon">
     <div class="game-icon">⚡</div>
     <div>
       <div class="game-name">Yellow Legacy</div>
@@ -224,11 +239,11 @@
       ROM hack. 151 Pokémon,<br>
       Gen 1 mechanics.
     </div>
-    <div class="launch-btn">Open Randomizer →</div>
-  </a>
+    <div class="coming-soon-badge">Coming Soon</div>
+  </div>
 
   <!-- Emerald Legacy -->
-  <a class="game-card emerald" href="/emerald">
+  <div class="game-card emerald coming-soon">
     <div class="game-icon">💚</div>
     <div>
       <div class="game-name">Emerald Legacy</div>
@@ -239,8 +254,8 @@
       ROM hack. 386 Pokémon,<br>
       Gen 3 mechanics.
     </div>
-    <div class="launch-btn">Open Randomizer →</div>
-  </a>
+    <div class="coming-soon-badge">Coming Soon</div>
+  </div>
 
 </div>
 

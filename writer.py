@@ -1424,52 +1424,72 @@ class SourceWriter:
 
     def _add_items_to_mart(self, marts_src: str, mart_label_substr: str, item_consts: list):
         """
-        Add items to the first mart whose label contains mart_label_substr
-        (case-insensitive).  Items already present in the mart are skipped.
+        Add items to ALL marts whose label contains mart_label_substr
+        (case-insensitive).  Some shops have multiple definitions for different
+        game states (e.g. Cherrygrove before/after the opening sequence) — every
+        matching definition is patched.  Items already present in a mart are skipped.
         """
         lines = self._load_file(marts_src)
-        # Locate the mart label
-        target_start = target_end = None
-        mart_name = None
-        for i, line in enumerate(lines):
+        found = 0
+
+        # Collect all matching mart start indices first (scanning forward only)
+        i = 0
+        offset = 0  # cumulative line offset from insertions
+        starts = []
+        for idx, line in enumerate(lines):
             stripped = line.rstrip()
             if stripped.endswith(':') and mart_label_substr.lower() in stripped.lower():
-                mart_name = stripped.rstrip(':')
-                target_start = i
-                # Find the db -1 terminator
-                for j in range(i + 1, len(lines)):
-                    if re.match(r'\s*db\s+-1', lines[j]):
-                        target_end = j
-                        break
-                break
+                starts.append(idx)
 
-        if target_start is None or target_end is None:
-            self.log(f"  [WARN] Mart matching '{mart_label_substr}' not found in marts.asm")
+        if not starts:
+            self.log(f"  [WARN] No mart matching '{mart_label_substr}' found in marts.asm")
             return
 
-        # Collect items already in the mart
-        existing = set()
-        for k in range(target_start + 1, target_end):
-            m = re.match(r'\s*db\s+(\w+)', lines[k])
-            if m:
-                existing.add(m.group(1))
+        # Process each match; track insertion offset so indices stay valid
+        inserted_so_far = 0
+        for raw_start in starts:
+            start = raw_start + inserted_so_far
+            mart_name = lines[start].rstrip().rstrip(':')
 
-        to_add = [ic for ic in item_consts if ic not in existing]
-        if not to_add:
-            self.log(f"  All items already in {mart_name} — nothing to add")
-            return
+            # Find db -1 terminator
+            end = None
+            for j in range(start + 1, len(lines)):
+                if re.match(r'\s*db\s+-1', lines[j]):
+                    end = j
+                    break
+            if end is None:
+                self.log(f"  [WARN] Could not find terminator for {mart_name} — skipped")
+                continue
 
-        # Increment the item count (line immediately after the label)
-        count_i = target_start + 1
-        mc = re.match(r'(\s*db\s+)(\d+)(\s*;.*)', lines[count_i])
-        if mc:
-            lines[count_i] = mc.group(1) + str(int(mc.group(2)) + len(to_add)) + mc.group(3)
+            # Items already in this mart definition
+            existing = set()
+            for k in range(start + 1, end):
+                m = re.match(r'\s*db\s+(\w+)', lines[k])
+                if m:
+                    existing.add(m.group(1))
 
-        # Insert new items just before the db -1 terminator
-        indent = re.match(r'(\s*)', lines[target_end]).group(1)
-        for ic in reversed(to_add):
-            lines.insert(target_end, indent + f"db {ic}\n")
-            self.log(f"  Added {ic} to {mart_name}")
+            to_add = [ic for ic in item_consts if ic not in existing]
+            if not to_add:
+                self.log(f"  {mart_name}: all items already present — skipped")
+                continue
+
+            # Increment the item count line (immediately after the label)
+            count_i = start + 1
+            mc = re.match(r'(\s*db\s+)(\d+)(\s*;.*)', lines[count_i])
+            if mc:
+                lines[count_i] = mc.group(1) + str(int(mc.group(2)) + len(to_add)) + mc.group(3)
+
+            # Insert new items just before db -1
+            indent = re.match(r'(\s*)', lines[end]).group(1)
+            for ic in reversed(to_add):
+                lines.insert(end, indent + f"db {ic}\n")
+                self.log(f"  Added {ic} to {mart_name}")
+
+            inserted_so_far += len(to_add)
+            found += 1
+
+        if found == 0:
+            self.log(f"  [WARN] Could not patch any mart matching '{mart_label_substr}'")
 
     def write_zero_grinding(self):
         """
