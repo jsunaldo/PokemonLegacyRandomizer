@@ -3,23 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Crystal Legacy Randomizer — Pokemon Legacy Randomizer</title>
+<title>Yellow Legacy Randomizer — Pokemon Legacy Randomizer</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root {
     --bg: #0f0f1a;
     --panel: #16213e;
     --card: #1a2744;
-    --accent: #e94560;
+    --accent: #f5c518;
     --accent2: #f5a623;
     --btn: #0f3460;
-    --btn-hover: #e94560;
+    --btn-hover: #1a3d70;
     --text: #dce3f0;
+    --fg: #dce3f0;
     --muted: #7a8ba8;
     --border: #243561;
     --green: #4caf7d;
     --red: #e94560;
     --input-bg: #0d1b35;
+    --surface: #16213e;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -42,7 +44,7 @@
   }
   .pokeball {
     width: 44px; height: 44px; border-radius: 50%;
-    background: linear-gradient(180deg, #e94560 50%, #dce3f0 50%);
+    background: linear-gradient(180deg, var(--accent) 50%, #dce3f0 50%);
     border: 3px solid #243561;
     position: relative; flex-shrink: 0;
   }
@@ -86,20 +88,16 @@
     gap: 18px; padding: 32px 0 24px;
   }
   .btn-randomize {
-    background: var(--accent); color: #fff;
+    background: var(--accent); color: #111;
     padding: 16px 52px; font-size: 17px; font-weight: 700;
     border-radius: 10px; letter-spacing: .02em;
-    box-shadow: 0 4px 24px rgba(233,69,96,.35);
+    box-shadow: 0 4px 24px rgba(245,197,24,.35);
     transition: background .15s, transform .08s, box-shadow .15s;
   }
-  .btn-randomize:hover { background: #c73350; box-shadow: 0 4px 32px rgba(233,69,96,.5); }
-  .btn-randomize:disabled { background: #5a2233; color: #999; cursor: not-allowed; box-shadow: none; }
-  .rand-status {
-    display: flex; align-items: center; gap: 10px; min-height: 22px;
-  }
-  .rand-seed-row {
-    display: flex; align-items: flex-end; gap: 10px;
-  }
+  .btn-randomize:hover { background: #d4ad15; box-shadow: 0 4px 32px rgba(245,197,24,.5); }
+  .btn-randomize:disabled { background: #5a4a00; color: #999; cursor: not-allowed; box-shadow: none; }
+  .rand-status { display: flex; align-items: center; gap: 10px; min-height: 22px; }
+  .rand-seed-row { display: flex; align-items: flex-end; gap: 10px; }
 
   /* Buttons */
   button {
@@ -109,21 +107,11 @@
   }
   button:active { transform: scale(.97); }
   .btn-secondary {
-    background: var(--btn); color: var(--text); padding: 7px 13px;
-    white-space: nowrap;
+    background: var(--btn); color: var(--text); padding: 7px 13px; white-space: nowrap;
   }
-  .btn-secondary:hover { background: #1a3d70; }
-  .btn-dice {
-    background: var(--btn); color: var(--accent2); padding: 7px 13px;
-    font-size: 16px;
-  }
-  .btn-dice:hover { background: #1a3d70; }
-  .btn-primary {
-    background: var(--accent); color: #fff;
-    padding: 10px 28px; font-size: 15px;
-  }
-  .btn-primary:hover { background: #c73350; }
-  .btn-primary:disabled { background: #5a2233; color: #999; cursor: not-allowed; }
+  .btn-secondary:hover { background: var(--btn-hover); }
+  .btn-dice { background: var(--btn); color: var(--accent2); padding: 7px 13px; font-size: 16px; }
+  .btn-dice:hover { background: var(--btn-hover); }
 
   /* Main layout */
   .main { display: flex; flex: 1; overflow: hidden; }
@@ -146,7 +134,7 @@
   .tab-btn .icon { font-size: 18px; }
   .tab-btn:hover { color: var(--text); background: rgba(255,255,255,.04); }
   .tab-btn.active {
-    color: var(--text); background: rgba(233,69,96,.1);
+    color: var(--text); background: rgba(245,197,24,.1);
     border-left-color: var(--accent);
   }
 
@@ -164,26 +152,24 @@
     letter-spacing: .08em; text-transform: uppercase;
     margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
   }
-  .section-title::after {
-    content: ""; flex: 1; height: 1px; background: var(--border);
-  }
+  .section-title::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
-  /* Checkboxes & options */
+  /* Options — no dividers */
   .option {
     display: flex; align-items: flex-start; gap: 10px;
     padding: 6px 0; cursor: pointer;
   }
-  .option input[type=checkbox] { margin-top: 2px; accent-color: var(--accent); cursor: pointer; }
+  .option input[type=checkbox],
+  .option input[type=radio] { margin-top: 2px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
   .option .opt-label { font-size: 14px; }
-  .option .opt-desc  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .option .opt-desc  { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
   .option-group { display: flex; flex-direction: column; gap: 2px; }
+  .sub-option { padding: 6px 0 0; }
 
-  /* Starter dropdowns */
-  .starter-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 12px; margin-top: 12px;
-  }
+  /* Starter grid */
+  .starter-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
   .starter-item label { font-size: 12px; color: var(--muted); margin-bottom: 4px; display: block; }
+
   select {
     width: 100%; background: var(--input-bg); border: 1px solid var(--border);
     color: var(--text); border-radius: 6px; padding: 7px 10px;
@@ -199,23 +185,28 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Log panel */
-  .log-wrap {
-    background: var(--panel); border-top: 1px solid var(--border);
-  }
+  /* Log */
+  .log-wrap { background: var(--panel); border-top: 1px solid var(--border); }
   .log-toggle {
     padding: 8px 32px; font-size: 12px; color: var(--accent);
-    cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px;
+    cursor: pointer; user-select: none;
   }
   .log-toggle:hover { color: var(--text); }
   #log-box {
     display: none; height: 180px; overflow-y: auto;
-    background: #08101f; color: #6effa0; font-family: "SF Mono", "Consolas", monospace;
+    background: #08101f; color: #6effa0;
+    font-family: "SF Mono", "Consolas", monospace;
     font-size: 12px; padding: 12px 20px; line-height: 1.6;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border); white-space: pre-wrap; word-break: break-all;
   }
 
-  /* How-to panel */
+  code {
+    background: var(--input-bg); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 4px; color: var(--accent2);
+    font-family: "SF Mono", "Consolas", monospace;
+  }
+
+  /* How-to */
   .how-step {
     display: flex; gap: 14px; align-items: flex-start;
     padding: 12px 0; border-bottom: 1px solid var(--border);
@@ -223,32 +214,20 @@
   .how-step:last-child { border-bottom: none; }
   .step-num {
     width: 28px; height: 28px; border-radius: 50%;
-    background: var(--accent); color: #fff;
+    background: var(--accent); color: #111;
     display: flex; align-items: center; justify-content: center;
     font-size: 13px; font-weight: 700; flex-shrink: 0;
   }
   .step-body h3 { font-size: 14px; margin-bottom: 4px; }
-  .step-body p, .step-body code { font-size: 13px; color: var(--muted); line-height: 1.6; }
-  code {
-    background: var(--input-bg); border: 1px solid var(--border);
-    padding: 1px 6px; border-radius: 4px; color: var(--accent2);
-    font-family: "SF Mono", "Consolas", monospace;
-  }
-  /* How-to extras */
+  .step-body p  { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 6px; }
   .how-note {
     background: rgba(245,166,35,.08); border: 1px solid rgba(245,166,35,.3);
     border-radius: 6px; padding: 10px 14px; font-size: 12.5px; color: var(--fg);
     line-height: 1.6; margin: 10px 0;
   }
-  .how-note.info {
-    background: rgba(83,145,255,.08); border-color: rgba(83,145,255,.3);
-  }
-  .how-note.success {
-    background: rgba(76,175,125,.08); border-color: rgba(76,175,125,.3);
-  }
-  .how-req-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px;
-  }
+  .how-note.info  { background: rgba(83,145,255,.08); border-color: rgba(83,145,255,.3); }
+  .how-note.success { background: rgba(76,175,125,.08); border-color: rgba(76,175,125,.3); }
+  .how-req-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
   .how-req-card {
     background: var(--input-bg); border: 1px solid var(--border);
     border-radius: 8px; padding: 12px 14px;
@@ -256,6 +235,8 @@
   .how-req-card .req-icon { font-size: 20px; margin-bottom: 6px; }
   .how-req-card .req-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
   .how-req-card .req-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .how-req-card .req-desc a { color: var(--accent); text-decoration: none; }
+  .how-req-card .req-desc a:hover { text-decoration: underline; }
   .how-ref-row {
     display: flex; gap: 12px; padding: 11px 0;
     border-bottom: 1px solid var(--border); align-items: flex-start;
@@ -265,14 +246,14 @@
   .how-ref-body { flex: 1; }
   .how-ref-body strong { font-size: 13px; display: block; margin-bottom: 4px; }
   .how-ref-body p { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin: 0 0 4px; }
-  .how-ref-body p:last-child { margin-bottom: 0; }
+  .how-ref-body em { color: var(--accent); font-style: normal; font-weight: 600; }
   .how-tip-list { margin: 0; padding-left: 18px; }
   .how-tip-list li { font-size: 12.5px; color: var(--muted); line-height: 1.65; margin-bottom: 3px; }
+  .how-tip-list li strong { color: var(--text); }
+  .how-tip-list li a { color: var(--accent); text-decoration: none; }
 
-  /* Starting item rows */
-  .item-row {
-    display: flex; gap: 8px; align-items: center;
-  }
+  /* Item rows */
+  .item-row { display: flex; gap: 8px; align-items: center; }
   .item-row input[type=number] {
     width: 64px; background: var(--input-bg); border: 1px solid var(--border);
     color: var(--text); border-radius: 6px; padding: 5px 8px;
@@ -280,10 +261,9 @@
   }
   .item-row input[type=number]:focus { border-color: var(--accent); }
   .btn-remove {
-    background: rgba(233,69,96,.15); color: var(--accent);
+    background: rgba(233,69,96,.15); color: var(--red);
     border: 1px solid rgba(233,69,96,.3);
-    padding: 4px 8px; font-size: 14px; border-radius: 6px; flex-shrink: 0;
-    line-height: 1;
+    padding: 4px 8px; font-size: 14px; border-radius: 6px; flex-shrink: 0; line-height: 1;
   }
   .btn-remove:hover { background: rgba(233,69,96,.3); }
   .btn-dup {
@@ -293,15 +273,12 @@
   }
   .btn-dup:hover { background: rgba(120,140,200,.32); }
 
-  /* PC Pokémon cards */
+  /* PC Mon cards */
   .pc-mon-card {
     background: var(--input-bg); border: 1px solid var(--border);
     border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
   }
-  .pc-mon-row {
-    display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px;
-    flex-wrap: wrap;
-  }
+  .pc-mon-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px; flex-wrap: wrap; }
   .pc-mon-row:last-child { margin-bottom: 0; }
   .pc-mon-field { display: flex; flex-direction: column; gap: 3px; }
   .pc-mon-field > label {
@@ -309,47 +286,28 @@
     text-transform: uppercase; letter-spacing: .04em;
   }
   .pc-mon-species { flex: 1; min-width: 160px; }
-  .pc-mon-select {
+  .pc-mon-select, .pc-mon-number, .pc-mon-nick {
     background: var(--input-bg); border: 1px solid var(--border);
-    color: var(--text); border-radius: 6px; padding: 5px 8px;
-    font-size: 12px; outline: none; appearance: none; cursor: pointer;
+    color: var(--text); border-radius: 6px; padding: 5px 8px; font-size: 12px; outline: none;
   }
-  .pc-mon-select:focus { border-color: var(--accent); }
-  .pc-mon-number {
-    width: 54px; background: var(--input-bg); border: 1px solid var(--border);
-    color: var(--text); border-radius: 6px; padding: 5px 8px;
-    font-size: 12px; outline: none; text-align: center;
-  }
-  .pc-mon-number:focus { border-color: var(--accent); }
-  .pc-mon-nick {
-    width: 120px; background: var(--input-bg); border: 1px solid var(--border);
-    color: var(--text); border-radius: 6px; padding: 5px 8px;
-    font-size: 12px; outline: none;
-  }
-  .pc-mon-nick:focus { border-color: var(--accent); }
-  .pc-mon-moves { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
-  .pc-mon-dvs-wrap { display: flex; gap: 10px; align-items: flex-end; }
+  .pc-mon-select:focus, .pc-mon-number:focus, .pc-mon-nick:focus { border-color: var(--accent); }
+  .pc-mon-number { width: 54px; text-align: center; }
+  .pc-mon-nick { width: 180px; }
+  .pc-mon-dvs-wrap { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
   .pc-mon-dv { display: flex; flex-direction: column; gap: 3px; align-items: center; }
-  .pc-mon-dv label {
-    font-size: 10px; color: var(--muted); font-weight: 600;
-    text-transform: uppercase; letter-spacing: .04em;
-  }
+  .pc-mon-dv label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
   .pc-mon-dv-input {
     width: 40px; background: var(--input-bg); border: 1px solid var(--border);
-    color: var(--text); border-radius: 6px; padding: 4px 4px;
-    font-size: 12px; outline: none; text-align: center;
+    color: var(--text); border-radius: 6px; padding: 4px; font-size: 12px; outline: none; text-align: center;
   }
   .pc-mon-dv-input:focus { border-color: var(--accent); }
   .pc-mon-section-label {
     font-size: 10px; color: var(--muted); font-weight: 600;
-    text-transform: uppercase; letter-spacing: .04em;
-    width: 100%; margin-bottom: 4px;
+    text-transform: uppercase; letter-spacing: .04em; width: 100%; margin-bottom: 4px;
   }
 
-  /* Searchable item combobox */
-  .cb-wrap {
-    position: relative; flex: 1;
-  }
+  /* Combobox */
+  .cb-wrap { position: relative; flex: 1; }
   .cb-input {
     width: 100%; background: var(--input-bg); border: 1px solid var(--border);
     color: var(--text); border-radius: 6px; padding: 5px 8px;
@@ -363,19 +321,13 @@
     box-shadow: 0 8px 24px rgba(0,0,0,.45);
   }
   .cb-dropdown.open { display: block; }
-  .cb-opt {
-    padding: 7px 12px; font-size: 12px; cursor: pointer; color: var(--text);
-  }
-  .cb-opt:hover, .cb-opt.active { background: rgba(233,69,96,.15); color: #fff; }
+  .cb-opt { padding: 7px 12px; font-size: 12px; cursor: pointer; color: var(--text); }
+  .cb-opt:hover, .cb-opt.active { background: rgba(245,197,24,.15); color: #fff; }
   .cb-none { padding: 8px 12px; font-size: 12px; color: var(--muted); }
 
-  .badge {
-    display: inline-block; font-size: 11px; font-weight: 600;
-    padding: 2px 8px; border-radius: 20px; margin-left: 6px;
-  }
-  .badge-green { background: rgba(76,175,125,.15); color: var(--green); border: 1px solid var(--green); }
-  .badge-yellow { background: rgba(245,166,35,.12); color: var(--accent2); border: 1px solid var(--accent2); }
-
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; margin-left: 6px; }
+  .badge-green  { background: rgba(76,175,125,.15); color: var(--green); border: 1px solid var(--green); }
+  .badge-yellow { background: rgba(245,197,24,.12); color: var(--accent); border: 1px solid var(--accent); }
 </style>
 </head>
 <body>
@@ -384,7 +336,7 @@
 <header>
   <div class="pokeball"></div>
   <div style="flex:1">
-    <h1>Pokemon Crystal Legacy Randomizer</h1>
+    <h1>Pokemon Yellow Legacy Randomizer</h1>
     <p>Modifies the ASM source and optionally compiles it into a playable ROM</p>
   </div>
   <a href="/" style="display:flex;align-items:center;gap:6px;background:var(--btn);color:var(--muted);
@@ -401,7 +353,7 @@
   <div class="field">
     <label>Source Directory</label>
     <div class="input-row">
-      <input type="text" id="srcDir" placeholder="Path to Pokemon_Crystal_Legacy source…">
+      <input type="text" id="srcDir" placeholder="Path to Pokemon_Yellow_Legacy source…">
       <button class="btn-secondary" onclick="browse('src')">Browse</button>
     </div>
   </div>
@@ -417,7 +369,6 @@
 <!-- Main -->
 <div class="main">
 
-  <!-- Tab list -->
   <nav class="tabs">
     <button class="tab-btn active" onclick="showTab('general',this)">
       <span class="icon">⚙️</span> General
@@ -440,6 +391,9 @@
     <button class="tab-btn" onclick="showTab('items',this)">
       <span class="icon">🎒</span> Items
     </button>
+    <button class="tab-btn" onclick="showTab('gifts',this)">
+      <span class="icon">🎁</span> Gifts
+    </button>
     <button class="tab-btn" onclick="showTab('randomize',this)">
       <span class="icon">⚡</span> Randomize
     </button>
@@ -451,39 +405,10 @@
     </button>
   </nav>
 
-  <!-- Tab panels -->
   <div class="panels">
 
     <!-- GENERAL -->
     <div class="panel active" id="panel-general">
-      <div class="section">
-        <div class="section-title">Limit Pokémon</div>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:14px">
-          Restricts the pool of Pokémon that can appear anywhere in the game —
-          starters, wild encounters, and trainer parties all draw from the same filtered pool.
-        </p>
-        <label class="option">
-          <input type="radio" name="genFilter" id="genAll" checked>
-          <div class="option-group">
-            <div class="opt-label">All Pokémon &mdash; Gen 1 + Gen 2</div>
-            <div class="opt-desc">Full roster of 251 Pokémon available</div>
-          </div>
-        </label>
-        <label class="option">
-          <input type="radio" name="genFilter" id="gen1Only">
-          <div class="option-group">
-            <div class="opt-label">Gen 1 only &mdash; Bulbasaur through Mew</div>
-            <div class="opt-desc">Only the original 151 Pokémon (#1–151)</div>
-          </div>
-        </label>
-        <label class="option">
-          <input type="radio" name="genFilter" id="gen2Only">
-          <div class="option-group">
-            <div class="opt-label">Gen 2 only &mdash; Chikorita through Celebi</div>
-            <div class="opt-desc">Only the Johto Pokémon (#152–251)</div>
-          </div>
-        </label>
-      </div>
 
       <div class="section">
         <div class="section-title">Evolutions</div>
@@ -491,14 +416,7 @@
           <input type="checkbox" id="easierEvolutions">
           <div class="option-group">
             <div class="opt-label">Make Evolutions Easier</div>
-            <div class="opt-desc">Caps evolution levels: middle-stage Pokémon evolve by level&nbsp;30, final-stage Pokémon by level&nbsp;40. For example Haunter and Kadabra (currently level&nbsp;42 in Crystal Legacy) will evolve at&nbsp;40</div>
-          </div>
-        </label>
-        <label class="option">
-          <input type="checkbox" id="removeTimeEvolutions">
-          <div class="option-group">
-            <div class="opt-label">Remove Time-Based Evolutions</div>
-            <div class="opt-desc">Day/night evolutions become item evolutions — Espeon uses a Sun Stone, Umbreon uses a Moon Stone</div>
+            <div class="opt-desc">Caps evolution levels: middle-stage Pokémon evolve by level&nbsp;30, final-stage Pokémon by level&nbsp;40. For example Haunter and Kadabra (currently high-level in Yellow Legacy) will evolve at&nbsp;40.</div>
           </div>
         </label>
       </div>
@@ -509,7 +427,7 @@
           <input type="checkbox" id="fullHMCompat">
           <div class="option-group">
             <div class="opt-label">Full HM Compatibility</div>
-            <div class="opt-desc">Every Pokémon can learn every HM move (Cut, Fly, Surf, Strength, Flash, Whirlpool, Waterfall). Prevents randomized runs from becoming uncompletable because a required field move can't be taught to any party member</div>
+            <div class="opt-desc">Every Pokémon can learn every HM move (Cut, Fly, Surf, Strength, Flash). Prevents randomized runs from becoming uncompletable because a required field move can't be taught to any party member</div>
           </div>
         </label>
       </div>
@@ -518,13 +436,19 @@
     <!-- STARTERS -->
     <div class="panel" id="panel-starters">
       <div class="section">
-        <div class="section-title">Pokémon</div>
+        <div class="section-title">Starter Pokémon</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+          In Yellow, you always start with Pikachu. With this option, Oak hands you an
+          <strong>extra starter alongside Pikachu</strong> at the beginning of the game
+          (Pikachu and all its special behaviour stay exactly as in the original).
+          The extra starter is given at level 5.
+        </p>
 
         <label class="option">
-          <input type="radio" name="starterMode" id="starterUnchanged" value="unchanged" onchange="onStarterModeChange()">
+          <input type="radio" name="starterMode" id="starterUnchanged" value="unchanged" checked onchange="onStarterModeChange()">
           <div class="option-group">
             <div class="opt-label">Unchanged</div>
-            <div class="opt-desc">Keep the original starters: Cyndaquil, Totodile, and Chikorita</div>
+            <div class="opt-desc">Just Pikachu, exactly like the original game — no extra starter</div>
           </div>
         </label>
 
@@ -532,29 +456,21 @@
           <input type="radio" name="starterMode" id="starterCustom" value="custom" onchange="onStarterModeChange()">
           <div class="option-group">
             <div class="opt-label">Custom</div>
-            <div class="opt-desc">Pick exactly which 3 Pokémon you want as starters</div>
+            <div class="opt-desc">Oak also gives you a specific Pokémon of your choice</div>
           </div>
         </label>
         <div class="starter-grid" id="customStarterGrid" style="display:none;margin-bottom:6px">
           <div class="starter-item">
-            <label>Starter 1</label>
+            <label>Custom Starter</label>
             <div id="customCb0"></div>
-          </div>
-          <div class="starter-item">
-            <label>Starter 2</label>
-            <div id="customCb1"></div>
-          </div>
-          <div class="starter-item">
-            <label>Starter 3</label>
-            <div id="customCb2"></div>
           </div>
         </div>
 
         <label class="option">
-          <input type="radio" name="starterMode" id="starterRandom" value="random" checked onchange="onStarterModeChange()">
+          <input type="radio" name="starterMode" id="starterRandom" value="random" onchange="onStarterModeChange()">
           <div class="option-group">
             <div class="opt-label">Random (Completely)</div>
-            <div class="opt-desc">Picks 3 distinct Pokémon at random from the full pool</div>
+            <div class="opt-desc">Oak also gives you a random Pokémon from the full pool</div>
           </div>
         </label>
 
@@ -562,47 +478,10 @@
           <input type="radio" name="starterMode" id="starterTwoStage" value="random_two_stage" onchange="onStarterModeChange()">
           <div class="option-group">
             <div class="opt-label">Random (basic Pokémon with 2 evolutions)</div>
-            <div class="opt-desc">Only picks from Pokémon that are the first stage of a 3-stage evolution line (e.g. Bulbasaur, Cyndaquil)</div>
+            <div class="opt-desc">Oak also gives you a random first-stage Pokémon of a 3-stage line (e.g. Bulbasaur, Charmander)</div>
           </div>
         </label>
       </div>
-
-      <div class="section" id="starterSubOptions" style="opacity:.35;pointer-events:none">
-        <div class="section-title">Sub-Options</div>
-        <label class="option">
-          <input type="checkbox" id="starterRandItems" onchange="syncStarterBanBadItems()">
-          <div class="option-group">
-            <div class="opt-label">Randomize Starter Held Item</div>
-            <div class="opt-desc">Replaces the held item in each starter's givepoke script call with a random held item</div>
-          </div>
-        </label>
-        <label class="option" id="starterBanBadItemsRow" style="opacity:.35;pointer-events:none;padding-left:28px">
-          <input type="checkbox" id="starterBanBadItems" checked>
-          <div class="opt-label">Ban Bad Items (only choose reliable, high-impact items)</div>
-        </label>
-      </div>
-
-      <!-- PC Pokémon -->
-      <div class="section">
-        <div class="section-title">PC Pokémon</div>
-        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
-          Add specific Pokémon to your PC boxes at the start of a new game.
-          Up to 20 Pokémon per box across all 14 boxes.
-          DVs are 0–15 (15 = perfect). Moves default to no moves if left as None.
-        </p>
-        <label class="option" style="margin-bottom:14px">
-          <input type="checkbox" id="pcPokemonEnable" onchange="onPCPokemonChange()">
-          <div class="option-group">
-            <div class="opt-label">Add Pokémon to PC</div>
-            <div class="opt-desc">When unchecked, the PC starts empty (vanilla behaviour)</div>
-          </div>
-        </label>
-        <div id="pcPokemonBody" style="display:none">
-          <div id="pcMonList" style="margin-bottom:10px"></div>
-          <button class="btn-secondary" style="font-size:12px;padding:6px 12px" onclick="addPCMon()">+ Add PC Pokémon</button>
-        </div>
-      </div>
-
     </div>
 
     <!-- WILD -->
@@ -622,7 +501,7 @@
           <input type="radio" name="wildMode" id="wildRandom" value="random" checked onchange="onWildModeChange()">
           <div class="option-group">
             <div class="opt-label">Random</div>
-            <div class="opt-desc">Every slot is replaced independently at random. Applies to grass, water, fishing, headbutt, and Bug Contest encounters</div>
+            <div class="opt-desc">Every slot is replaced independently at random. Applies to grass, water, and fishing encounters</div>
           </div>
         </label>
 
@@ -679,17 +558,9 @@
         </label>
       </div>
 
-      <!-- Extra sub-options (shown when wild mode ≠ unchanged) -->
+      <!-- Extra sub-options -->
       <div class="section" id="wildExtraSection" style="opacity:.35;pointer-events:none">
         <div class="section-title">Extra</div>
-
-        <label class="option">
-          <input type="checkbox" id="wildTimeBased" checked>
-          <div class="option-group">
-            <div class="opt-label">Use Time-Based Encounters</div>
-            <div class="opt-desc">When checked, morning / day / night slots are each randomized independently. When unchecked, all three periods share the same set of Pokémon (matching how most emulators play without a clock)</div>
-          </div>
-        </label>
 
         <label class="option">
           <input type="checkbox" id="wildNoLegendaries">
@@ -698,23 +569,10 @@
             <div class="opt-desc">Exclude legendary and mythical Pokémon from the wild encounter pool</div>
           </div>
         </label>
-
-        <label class="option">
-          <input type="checkbox" id="wildRandHeldItems" onchange="syncWildBanBadHeld()">
-          <div class="option-group">
-            <div class="opt-label">Randomize Held Items</div>
-            <div class="opt-desc">Randomize the items that wild Pokémon may hold when encountered</div>
-            <label class="option sub-option" id="wildBanBadHeldRow" style="display:none;margin-top:4px">
-              <input type="checkbox" id="wildBanBadHeldItems" checked>
-              <div class="opt-label" style="font-size:12px">Ban Bad Items <span style="color:var(--muted);font-weight:400">(exclude situational / ineffective items)</span></div>
-            </label>
-          </div>
-        </label>
       </div>
 
       <p style="font-size:12px;color:var(--muted);margin-top:4px">
         ℹ️ Levels are always preserved — only species are replaced.
-        The Pokémon pool is controlled by the <strong>General</strong> tab.
       </p>
     </div>
 
@@ -735,7 +593,7 @@
           <input type="radio" name="trainerMode" id="trainerRandom" value="random" checked onchange="onTrainerModeChange()">
           <div class="option-group">
             <div class="opt-label">Random</div>
-            <div class="opt-desc">Each trainer slot is replaced with a completely random Pokémon. Boss trainers (gym leaders, Elite Four, Rival) draw from a separate, stricter pool</div>
+            <div class="opt-desc">Each trainer slot is replaced with a completely random Pokémon</div>
           </div>
         </label>
 
@@ -751,7 +609,7 @@
           <input type="radio" name="trainerMode" id="trainerTypeThemed" value="type_themed" onchange="onTrainerModeChange()">
           <div class="option-group">
             <div class="opt-label">Type Themed</div>
-            <div class="opt-desc">Every trainer — including regular ones — is assigned a random type, and all of their Pokémon share that type, giving each trainer a distinct identity</div>
+            <div class="opt-desc">Every trainer is assigned a random type, and all of their Pokémon share that type, giving each trainer a distinct identity</div>
           </div>
         </label>
 
@@ -759,21 +617,13 @@
           <input type="radio" name="trainerMode" id="trainerTypeThemedBoss" value="type_themed_boss" onchange="onTrainerModeChange()">
           <div class="option-group">
             <div class="opt-label">Type Themed (Elite 4 / Gym Leaders Only)</div>
-            <div class="opt-desc">Only gym leaders, Elite Four, and the Rival receive type-themed parties. Regular trainers are still randomized randomly</div>
+            <div class="opt-desc">Only gym leaders and the Elite Four receive type-themed parties. Regular trainers are still randomized randomly</div>
           </div>
         </label>
       </div>
 
       <div class="section" id="trainerAdditionalSection" style="opacity:.35;pointer-events:none">
         <div class="section-title">Additional</div>
-
-        <label class="option">
-          <input type="checkbox" id="trainerRivalStarter">
-          <div class="option-group">
-            <div class="opt-label">Rival Carries Starter Through the Game</div>
-            <div class="opt-desc">The rival always has the starter Pokémon (and its evolutions) that counters your chosen starter, just like in the original game. Works with randomized starters</div>
-          </div>
-        </label>
 
         <label class="option">
           <input type="checkbox" id="trainerSimilarStrength">
@@ -787,7 +637,7 @@
           <input type="checkbox" id="trainerNoLegend">
           <div class="option-group">
             <div class="opt-label">Don't Use Legendaries</div>
-            <div class="opt-desc">Legendary and mythical Pokémon are excluded from trainer parties. Note: boss trainers (gym leaders, Elite Four) already exclude legendaries by default</div>
+            <div class="opt-desc">Legendary and mythical Pokémon are excluded from trainer parties</div>
           </div>
         </label>
 
@@ -819,9 +669,7 @@
       </div>
 
       <p style="font-size:12px;color:var(--muted);margin-top:4px">
-        ℹ️ Levels, moves, held items, and DVs are preserved — only species are replaced.
-        Crystal Legacy's extended trainer flags are fully supported.
-        The Pokémon pool is controlled by the <strong>General</strong> tab.
+        ℹ️ Levels and moves are preserved — only species are replaced.
       </p>
     </div>
 
@@ -830,9 +678,9 @@
       <div class="section">
         <div class="section-title">Pokémon</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
-          In-game trades are NPC exchanges built into the game — e.g. giving a Bellsprout and
-          receiving an Onix. The parser automatically detects trades from
-          <code>trade</code> script macros and <code>db SPECIES</code> data blocks.
+          In-game trades are NPC exchanges built into the game — e.g. giving a Raichu and
+          receiving an Electrode. The parser automatically detects trades from Yellow Legacy's
+          trade data blocks.
         </p>
 
         <label class="option">
@@ -869,32 +717,11 @@
             <div class="opt-desc">The received Pokémon gets a new randomly generated nickname</div>
           </div>
         </label>
-        <label class="option">
-          <input type="checkbox" id="tradeRandOT">
-          <div class="option-group">
-            <div class="opt-label">Randomize OTs</div>
-            <div class="opt-desc">The received Pokémon gets a new randomly generated Original Trainer name</div>
-          </div>
-        </label>
-        <label class="option">
-          <input type="checkbox" id="tradeRandIVs">
-          <div class="option-group">
-            <div class="opt-label">Randomize IVs</div>
-            <div class="opt-desc">The received Pokémon's Gen 2 DVs (stat values) are randomized</div>
-          </div>
-        </label>
-        <label class="option">
-          <input type="checkbox" id="tradeRandItems">
-          <div class="option-group">
-            <div class="opt-label">Randomize Items</div>
-            <div class="opt-desc">The received Pokémon holds a random item instead of the default</div>
-          </div>
-        </label>
       </div>
 
       <p style="font-size:12px;color:var(--muted);margin-top:4px">
         ℹ️ Levels are always preserved.
-        If 0 trades are found, check the log — the source may use a different macro name.
+        Yellow trade format does not include OT names, IVs, or held items.
       </p>
     </div>
 
@@ -904,8 +731,7 @@
         <div class="section-title">Pokémon</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
           Static Pokémon are encountered at fixed overworld locations — not in wild grass or trainer parties.
-          Examples: Red Gyarados, Sudowoodo, Lugia, Ho-Oh, roaming Raikou &amp; Entei, Snorlax, Lapras,
-          and gift Pokémon such as Eevee, Dratini, and fossils.
+          Examples: Snorlax (×2), and gift Pokémon such as Lapras, Eevee, fossils, and Magikarp.
         </p>
 
         <label class="option">
@@ -920,8 +746,8 @@
           <input type="radio" name="staticMode" id="staticSwap" value="swap" onchange="onStaticModeChange()">
           <div class="option-group">
             <div class="opt-label">Swap Legendaries &amp; Swap Standards</div>
-            <div class="opt-desc">Legendary statics (Lugia, Ho-Oh, Suicune…) are replaced with other legendaries at random.
-              Standard statics (Gyarados, Sudowoodo, Snorlax…) are replaced with other non-legendaries at random.</div>
+            <div class="opt-desc">Legendary statics are replaced with other legendaries at random.
+              Standard statics (Snorlax, Lapras, Eevee…) are replaced with other non-legendaries at random.</div>
           </div>
         </label>
 
@@ -944,10 +770,10 @@
       </div>
 
       <p style="font-size:12px;color:var(--muted);margin-top:4px">
-        ℹ️ The Pokémon pool is controlled by the <strong>General</strong> tab.<br>
-        Static encounters are detected automatically by scanning the source for
-        <code>battle</code> and <code>givepoke</code> script macros.
-        If your source uses different macro names, 0 encounters will be found and this option has no effect.
+        ℹ️ Static encounters are detected by scanning source scripts for
+        <code>wCurOpponent</code> battle patterns and <code>GivePokemon</code> gift scripts.
+        This includes the gift Bulbasaur, Charmander, Squirtle, Eevee, Lapras, fossils, and Magikarp.
+        The legendary birds and Mewtwo are not randomized (they use a separate battle header system).
       </p>
     </div>
 
@@ -1005,47 +831,9 @@
       </div>
 
       <p style="font-size:12px;color:var(--muted);margin-top:4px">
-        ℹ️ The randomizer scans <code>maps/</code> script files for <code>finditem</code>, <code>itemball</code>,
-        and <code>hiddenitem</code> macros. If 0 items are found, check that your source has those script directories.
+        ℹ️ The randomizer scans script files for <code>item_ball</code> and
+        <code>hidden_object</code> macros.
       </p>
-
-      <!-- Starting Items -->
-      <div class="section" style="margin-top:24px">
-        <div class="section-title">Starting Items</div>
-        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
-          Configure what items are in your <strong>bag</strong> and <strong>PC box</strong> at the start of a new game.
-          Vanilla Crystal Legacy starts with an empty bag and empty PC. Up to 20 bag slots and 50 PC slots, qty 1–99 each.
-        </p>
-        <label class="option" style="margin-bottom:14px">
-          <input type="checkbox" id="startingItemsEnable" onchange="onStartingItemsChange()">
-          <div class="option-group">
-            <div class="opt-label">Customize Starting Items</div>
-            <div class="opt-desc">When unchecked, the game starts with the vanilla empty inventory</div>
-          </div>
-        </label>
-
-        <div id="startingItemsBody" style="display:none">
-
-          <!-- Bag -->
-          <div style="margin-bottom:16px">
-            <div style="font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">
-              🎒 Bag <span id="bagCount" style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(0 / 20)</span>
-            </div>
-            <div id="bagItemList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
-            <button class="btn-secondary" style="font-size:12px;padding:6px 12px" onclick="addItemRow('bag')">+ Add Bag Item</button>
-          </div>
-
-          <!-- PC -->
-          <div>
-            <div style="font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">
-              💾 PC Box <span id="pcCount" style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(0 / 50)</span>
-            </div>
-            <div id="pcItemList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
-            <button class="btn-secondary" style="font-size:12px;padding:6px 12px" onclick="addItemRow('pc')">+ Add PC Item</button>
-          </div>
-
-        </div>
-      </div>
 
       <!-- Shop Items -->
       <div class="section" style="margin-top:24px">
@@ -1058,7 +846,7 @@
           <input type="checkbox" id="zeroGrinding">
           <div class="option-group">
             <div class="opt-label">Zero Grinding</div>
-            <div class="opt-desc">Adds Rare Candy to the <strong>Cherrygrove Mart</strong> for $10 — available from the very start of the game</div>
+            <div class="opt-desc">Adds Rare Candy to the <strong>Viridian Mart</strong> for $10 — available from the very start of the game</div>
           </div>
         </label>
 
@@ -1066,9 +854,42 @@
           <input type="checkbox" id="elite4Prep">
           <div class="option-group">
             <div class="opt-label">Elite 4 Prep</div>
-            <div class="opt-desc">Stocks the <strong>Indigo Plateau Mart</strong> with Rare Candy, Full Restore, Max Elixir, and Max Revive — all for $10 each</div>
+            <div class="opt-desc">Stocks the <strong>Indigo Plateau Lobby Mart</strong> with Rare Candy, Full Restore, Max Elixir, and Max Revive — all for $10 each</div>
           </div>
         </label>
+      </div>
+    </div>
+
+    <!-- GIFTS -->
+    <div class="panel" id="panel-gifts">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:18px">
+        Gifts are handed to you by <strong>Daisy</strong> (the rival's sister) in Pallet Town,
+        together with the Town Map — right after you get the Pokédex. Anything you add here is
+        given using the game's own gift routines, so Pokémon arrive with correct stats and items
+        stack with quantity. Leave a section empty to give nothing.
+      </p>
+
+      <!-- Gift Pokémon -->
+      <div class="section">
+        <div class="section-title">Pokémon</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+          Add up to 20 Pokémon. Each goes to your party if there's room, otherwise the PC box.
+          DVs are 0–15 (15 = perfect). Leave moves as <em>None</em> to use the species'
+          default level-up moves.
+        </p>
+        <div id="pcMonList" style="margin-bottom:10px"></div>
+        <button class="btn-secondary" style="font-size:12px;padding:6px 12px" onclick="addPCMon()">+ Add Pokémon</button>
+      </div>
+
+      <!-- Gift Items -->
+      <div class="section">
+        <div class="section-title">Items</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+          Add items to your <strong>Bag</strong>, quantity 1–99 each. Up to 20 item types.
+        </p>
+        <div id="bagItemList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+        <button class="btn-secondary" style="font-size:12px;padding:6px 12px" onclick="addItemRow('bag')">+ Add Item</button>
+        <span id="bagCount" style="margin-left:10px;color:var(--muted);font-size:12px">(0 / 20)</span>
       </div>
     </div>
 
@@ -1096,7 +917,7 @@
                  style="accent-color:var(--accent);width:15px;height:15px;margin-top:3px">
           <div class="option-group">
             <div class="opt-label">Build ROM after randomizing</div>
-            <div class="opt-desc">Compiles the randomized source into a playable <code>.gbc</code> file using <code>make</code> + RGBDS&nbsp;0.5.2. A save dialog will appear so you can name and place the ROM anywhere. Requires RGBDS&nbsp;v0.5.2 — see the <strong>How to Use</strong> tab for install instructions.</div>
+            <div class="opt-desc">Compiles the randomized source into a playable <code>pokeyellow.gbc</code> file using <code>make</code> + RGBDS. Requires <strong>RGBDS 0.6.0+</strong> (not the 0.5.2 used by Crystal Legacy). A save dialog will appear so you can name and place the ROM anywhere.</div>
           </div>
         </label>
       </div>
@@ -1104,7 +925,7 @@
       <div class="section">
         <div class="section-title">Settings</div>
 
-        <div style="margin-bottom:12px">
+        <div style="border-top:1px solid var(--border);padding-top:12px">
           <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">
             Settings only <span style="font-weight:400;text-transform:none;letter-spacing:0">— share options without locking in a seed</span>
           </div>
@@ -1160,23 +981,22 @@
         </p>
       </div>
 
-      <!-- ── Requirements ─────────────────────────────────────────────── -->
       <div class="section">
         <div class="section-title">Requirements</div>
         <div class="how-req-grid">
           <div class="how-req-card">
             <div class="req-icon">🎮</div>
-            <div class="req-title">Crystal Legacy source code</div>
+            <div class="req-title">Yellow Legacy source code</div>
             <div class="req-desc">Clone from GitHub — this is the ASM source the randomizer modifies.<br>
-              <a href="https://github.com/cRz-Shadows/Pokemon_Crystal_Legacy" style="color:var(--accent)">github.com/cRz-Shadows/Pokemon_Crystal_Legacy</a>
+              <a href="https://github.com/cRz-Shadows/Pokemon_Yellow_Legacy" style="color:var(--accent)">github.com/cRz-Shadows/Pokemon_Yellow_Legacy</a>
             </div>
           </div>
           <div class="how-req-card">
             <div class="req-icon">🔧</div>
-            <div class="req-title">RGBDS v0.5.2 <span class="badge badge-yellow">exact version</span></div>
-            <div class="req-desc">The assembler/linker that compiles the ASM source into a .gbc ROM.
-              Crystal Legacy requires <strong>exactly v0.5.2</strong> — newer versions (1.x) have breaking syntax changes.<br>
-              <a href="https://github.com/gbdev/rgbds/releases/tag/v0.5.2" style="color:var(--accent)">Download v0.5.2</a>
+            <div class="req-title">RGBDS 0.6.0+ <span class="badge badge-yellow">v0.6.0 or newer</span></div>
+            <div class="req-desc">The assembler/linker that compiles the ASM source into a .gb ROM.
+              Yellow Legacy requires <strong>v0.6.0 or newer</strong> (not the older 0.5.2 used by Crystal Legacy).<br>
+              <a href="https://github.com/gbdev/rgbds/releases" style="color:var(--accent)">github.com/gbdev/rgbds/releases</a>
             </div>
           </div>
           <div class="how-req-card">
@@ -1187,32 +1007,31 @@
           <div class="how-req-card">
             <div class="req-icon">📂</div>
             <div class="req-title">Git</div>
-            <div class="req-desc">Used to clone the Crystal Legacy repository. Already available on macOS via Xcode Command Line Tools (<code>xcode-select --install</code>).</div>
+            <div class="req-desc">Used to clone the Yellow Legacy repository. Already available on macOS via Xcode Command Line Tools (<code>xcode-select --install</code>).</div>
           </div>
         </div>
       </div>
 
-      <!-- ── First-time setup ─────────────────────────────────────────── -->
       <div class="section">
         <div class="section-title">First-Time Setup (do this once)</div>
 
         <div class="how-step">
           <div class="step-num">1</div>
           <div class="step-body">
-            <h3>Get the Crystal Legacy source code</h3>
+            <h3>Get the Yellow Legacy source code</h3>
             <p>Open Terminal and run:</p>
-            <p><code>git clone https://github.com/cRz-Shadows/Pokemon_Crystal_Legacy</code></p>
-            <p>This creates a <code>Pokemon_Crystal_Legacy</code> folder — that's your <strong>Source Directory</strong>. Never modify files inside it; the randomizer reads from it and writes to a separate output folder.</p>
+            <p><code>git clone https://github.com/cRz-Shadows/Pokemon_Yellow_Legacy</code></p>
+            <p>This creates a <code>Pokemon_Yellow_Legacy</code> folder — that's your <strong>Source Directory</strong>. Never modify files inside it; the randomizer reads from it and writes to a separate output folder.</p>
           </div>
         </div>
 
         <div class="how-step">
           <div class="step-num">2</div>
           <div class="step-body">
-            <h3>Install RGBDS v0.5.2</h3>
-            <p>Download the macOS binary from <a href="https://github.com/gbdev/rgbds/releases/tag/v0.5.2" style="color:var(--accent)">github.com/gbdev/rgbds/releases/tag/v0.5.2</a> (file: <code>rgbds-0.5.2-macos-x86-64.zip</code>), unzip it, then in Terminal:</p>
+            <h3>Install RGBDS 0.6.0+</h3>
+            <p>Download the macOS binary for <strong>v0.6.0 or newer</strong> from <a href="https://github.com/gbdev/rgbds/releases" style="color:var(--accent)">github.com/gbdev/rgbds/releases</a>, unzip it, then in Terminal:</p>
             <p><code>sudo cp rgbasm rgblink rgbfix rgbgfx /usr/local/bin/</code></p>
-            <div class="how-note">⚠️ <strong>Do not install the latest RGBDS.</strong> Crystal Legacy compiles only with v0.5.2. If you already have a newer version you'll need to replace it with 0.5.2.</div>
+            <div class="how-note">⚠️ <strong>Yellow Legacy requires RGBDS 0.6.0 or newer.</strong> If you also use Crystal Legacy (which needs the older 0.5.2), you'll need to swap the binaries in <code>/usr/local/bin/</code> when switching between games.</div>
           </div>
         </div>
 
@@ -1220,12 +1039,11 @@
           <div class="step-num">3</div>
           <div class="step-body">
             <h3>Create an Output Directory</h3>
-            <p>Make a new empty folder anywhere on your Mac — for example <code>~/Desktop/CLRando_Output</code>. This is where the randomized source files are written. <strong>It is fully overwritten on every run</strong>, so don't store anything important here.</p>
+            <p>Make a new empty folder anywhere on your Mac — for example <code>~/Desktop/YLRando_Output</code>. This is where the randomized source files are written. <strong>It is fully overwritten on every run</strong>, so don't store anything important here.</p>
           </div>
         </div>
       </div>
 
-      <!-- ── Every-run workflow ───────────────────────────────────────── -->
       <div class="section">
         <div class="section-title">Generating a Randomized ROM (every run)</div>
 
@@ -1233,7 +1051,7 @@
           <div class="step-num">1</div>
           <div class="step-body">
             <h3>Set your directories</h3>
-            <p>At the top of the app, click <strong>Browse</strong> next to <em>Source Directory</em> and select your cloned <code>Pokemon_Crystal_Legacy</code> folder.</p>
+            <p>At the top of the app, click <strong>Browse</strong> next to <em>Source Directory</em> and select your cloned <code>Pokemon_Yellow_Legacy</code> folder.</p>
             <p>Click <strong>Browse</strong> next to <em>Output Directory</em> and select the empty output folder you created.</p>
           </div>
         </div>
@@ -1250,7 +1068,7 @@
           <div class="step-num">3</div>
           <div class="step-body">
             <h3>Configure your options</h3>
-            <p>Use the tabs to customize each category. Every tab is independent — you can randomize starters but leave trainers unchanged, for example. See the <strong>Tab Reference</strong> section below for a full breakdown of every option.</p>
+            <p>Use the tabs to customize each category. Every tab is independent — you can randomize starters but leave trainers unchanged, for example.</p>
           </div>
         </div>
 
@@ -1259,7 +1077,7 @@
           <div class="step-body">
             <h3>Randomize &amp; Build ROM</h3>
             <p>Make sure <strong>Build ROM after randomizing</strong> is checked (it is by default), then click the <strong>Randomize &amp; Build ROM</strong> button.</p>
-            <p>The app will: copy the source → apply all changes → compile with <code>make</code> → open a save dialog so you can name and place the <code>.gbc</code> file anywhere you like.</p>
+            <p>The app will: copy the source → apply all changes → compile with <code>make</code> → open a save dialog so you can name and place the <code>.gb</code> file anywhere you like.</p>
             <div class="how-note info">ℹ️ If you uncheck "Build ROM", the randomized ASM source is saved to the Output Directory but not compiled. You can compile it yourself later by opening a Terminal in that folder and running <code>make</code>.</div>
           </div>
         </div>
@@ -1268,12 +1086,11 @@
           <div class="step-num">5</div>
           <div class="step-body">
             <h3>Play the ROM</h3>
-            <p>Load the saved <code>.gbc</code> file in any Game Boy Color emulator — <strong>mGBA</strong> and <strong>BGB</strong> are popular choices. The file is a standard GBC ROM and works on real hardware via a flash cart as well.</p>
+            <p>Load the saved <code>.gb</code> file in any Game Boy emulator — <strong>mGBA</strong> and <strong>BGB</strong> are popular choices. The file works on real hardware via a flash cart as well.</p>
           </div>
         </div>
       </div>
 
-      <!-- ── Tab reference ───────────────────────────────────────────── -->
       <div class="section">
         <div class="section-title">Tab Reference</div>
 
@@ -1281,10 +1098,8 @@
           <div class="how-ref-icon">⚙️</div>
           <div class="how-ref-body">
             <strong>General</strong>
-            <p><em>Limit Pokémon</em> — Restricts the global pool to Gen 1 only (Bulbasaur–Mew), Gen 2 only (Chikorita–Celebi), or all 251. This filter applies everywhere: starters, wild encounters, trainers, and static Pokémon all draw from the same filtered pool.</p>
-            <p><em>Make Evolutions Easier</em> — Caps evolution levels so middle-stage Pokémon evolve by Lv 30 and final-stage by Lv 40, making trade evolutions like Haunter and Kadabra reachable without trading.</p>
-            <p><em>Remove Time-Based Evolutions</em> — Converts day/night happiness evolutions to item evolutions: Espeon uses a Sun Stone, Umbreon uses a Moon Stone.</p>
-            <p><em>Full HM Compatibility</em> — Gives every Pokémon the ability to learn all 7 HMs (Cut, Fly, Surf, Strength, Flash, Whirlpool, Waterfall). Strongly recommended for randomized playthroughs to prevent getting stuck because no party member can learn a required field move.</p>
+            <p><em>Make Evolutions Easier</em> — Caps evolution levels so middle-stage Pokémon evolve by Lv 30 and final-stage by Lv 40 (e.g. Haunter and Kadabra, normally high-level in Yellow Legacy, evolve at Lv 40).</p>
+            <p><em>Full HM Compatibility</em> — Gives every Pokémon the ability to learn all 5 HMs (Cut, Fly, Surf, Strength, Flash). Strongly recommended for randomized playthroughs to prevent getting stuck.</p>
           </div>
         </div>
 
@@ -1292,12 +1107,10 @@
           <div class="how-ref-icon">🌱</div>
           <div class="how-ref-body">
             <strong>Starters</strong>
-            <p><em>Unchanged</em> — Keeps Cyndaquil, Totodile, and Chikorita.</p>
-            <p><em>Custom</em> — You pick exactly which 3 Pokémon fill the starter balls using dropdown menus.</p>
-            <p><em>Random (Completely)</em> — 3 distinct Pokémon chosen at random from the pool.</p>
+            <p><em>Unchanged</em> — Keeps Bulbasaur, Charmander, and Squirtle at their respective gift locations.</p>
+            <p><em>Custom</em> — You pick exactly which Pokémon replaces all three gift starter locations.</p>
+            <p><em>Random (Completely)</em> — One Pokémon chosen at random from the pool; all three gift locations give the same species.</p>
             <p><em>Random (basic with 2 evolutions)</em> — Only picks from Pokémon that are the first stage of a 3-stage line (e.g. Bulbasaur, Charmander), giving a classic "starter feel."</p>
-            <p><em>Randomize Starter Held Item</em> — Replaces the held item each starter comes with. Enable <em>Ban Bad Items</em> to ensure starters get useful items like Leftovers or Scope Lens.</p>
-            <p>When starters are randomized, the Elm's Lab dialogue ("You'll take CYNDAQUIL, the fire Pokémon?") is automatically updated to show the correct species name and type.</p>
           </div>
         </div>
 
@@ -1305,11 +1118,9 @@
           <div class="how-ref-icon">🌿</div>
           <div class="how-ref-body">
             <strong>Wild Pokémon</strong>
-            <p><em>Random</em> — Every wild slot is independently replaced. <em>Area 1-to-1</em> — consistent mapping per area (same species always maps to the same replacement within one route). <em>Global 1-to-1</em> — one mapping used across the whole game.</p>
-            <p><em>Additional Rules</em> (available when not Unchanged): <em>Similar Strength</em> picks replacements with a similar Base Stat Total. <em>Catch 'Em All</em> ensures every Pokémon in the pool appears at least once in the wild. <em>Type Themed Areas</em> assigns each route a random type — all encounters there share that type.</p>
-            <p><em>Use Time-Based Encounters</em> — randomizes morning/day/night slots independently. Uncheck if playing on an emulator without a clock.</p>
-            <p><em>Randomize Held Items</em> — randomizes the items wild Pokémon may hold when encountered.</p>
-            <p>Levels are never changed — only species are replaced.</p>
+            <p><em>Random</em> — Every wild slot is independently replaced. <em>Area 1-to-1</em> — consistent mapping per area. <em>Global 1-to-1</em> — one mapping used across the whole game.</p>
+            <p><em>Additional Rules</em>: <em>Similar Strength</em> picks replacements with a similar Base Stat Total. <em>Catch 'Em All</em> ensures every Pokémon in the pool appears at least once. <em>Type Themed Areas</em> assigns each route a random type.</p>
+            <p>Levels are never changed — only species are replaced. Fishing (Old Rod, Good Rod, Super Rod) is also randomized when wild mode is active.</p>
           </div>
         </div>
 
@@ -1317,11 +1128,10 @@
           <div class="how-ref-icon">🧢</div>
           <div class="how-ref-body">
             <strong>Trainers</strong>
-            <p><em>Random</em> — Each trainer slot is replaced with a random Pokémon. <em>Random (Even Distribution)</em> — the pool is cycled so every species appears about equally often. <em>Type Themed</em> — every trainer gets a random type theme. <em>Type Themed (Bosses Only)</em> — only gym leaders, Elite Four, and the Rival are type-themed; regular trainers are randomly randomized.</p>
-            <p><em>Rival Carries Starter</em> — the Rival always has the starter that counters yours (and its evolutions), just like the original game. Works with randomized starters.</p>
-            <p><em>Similar Strength</em> — replacements match the original Pokémon's Base Stat Total, keeping the difficulty curve intact.</p>
+            <p><em>Random</em> — Each trainer slot is replaced with a random Pokémon. <em>Random (Even Distribution)</em> — the pool is cycled so every species appears about equally often. <em>Type Themed</em> — every trainer gets a random type theme. <em>Type Themed (Bosses Only)</em> — only gym leaders and Elite Four are type-themed.</p>
+            <p><em>Similar Strength</em> — replacements match the original Pokémon's Base Stat Total.</p>
             <p><em>Force Fully Evolved at Level X</em> — any trainer Pokémon at or above the chosen level that isn't its final evolution is upgraded to its final form after randomization.</p>
-            <p>Levels, moves, held items, and DVs are always preserved — only species are replaced.</p>
+            <p>Levels and moves are always preserved — only species are replaced.</p>
           </div>
         </div>
 
@@ -1329,7 +1139,8 @@
           <div class="how-ref-icon">🗿</div>
           <div class="how-ref-body">
             <strong>Static Pokémon</strong>
-            <p>Static Pokémon are encountered at fixed overworld locations — not in grass or trainer battles. Examples: Red Gyarados, Sudowoodo, Lugia, Ho-Oh, Suicune, roaming Raikou &amp; Entei, Snorlax, Lapras, and gift Pokémon (Eevee, Dratini, fossils).</p>
+            <p>Static Pokémon are encountered at fixed overworld locations. Examples: Snorlax (Route 12 and Route 16), and gift Pokémon — Lapras (Silph Co.), Eevee (Celadon Mansion), fossil Pokémon, and Magikarp (Mt. Moon Pokémon Center).</p>
+            <p>The legendary birds (Articuno, Zapdos, Moltres) and Mewtwo use a trainer-battle system and are not randomized.</p>
             <p><em>Swap</em> — Legendaries swap with legendaries; standard statics swap with non-legendaries. <em>Random (Completely)</em> — anything can replace anything. <em>Random (Similar Strength)</em> — replacements have a similar Base Stat Total.</p>
           </div>
         </div>
@@ -1338,9 +1149,9 @@
           <div class="how-ref-icon">🤝</div>
           <div class="how-ref-body">
             <strong>In-Game Trades</strong>
-            <p>NPC trades built into the game — for example giving a Bellsprout and receiving an Onix.</p>
+            <p>NPC trades built into the game — giving one Pokémon and receiving another.</p>
             <p><em>Randomize Given Only</em> — what you receive is randomized; what you must give stays the same. <em>Randomize Both</em> — both sides of the trade are randomized.</p>
-            <p>Sub-options let you also randomize the received Pokémon's nickname, OT name, IVs (DVs), and held item independently.</p>
+            <p>Yellow trade format does not support OT names, DVs, or held items — only species and nickname can be changed.</p>
           </div>
         </div>
 
@@ -1349,13 +1160,14 @@
           <div class="how-ref-body">
             <strong>Items</strong>
             <p>Controls overworld items — both visible Pokéball sprites and hidden items found with the Itemfinder. Key items and HMs are never replaced.</p>
-            <p><em>Shuffle</em> — the same set of items is redistributed across locations (every item still exists, just in a different spot). <em>Random</em> — each location independently gets a random item. <em>Random (Evenly Distribute)</em> — all items in the pool appear as close to equally often as possible.</p>
-            <p><em>Ban Bad Items</em> — excludes cheap/situational items (basic Potions, Antidotes, plain Repel) so every replaced item is at least somewhat useful. Applies to Random and Even modes only.</p>
+            <p><em>Shuffle</em> — the same set of items is redistributed across locations. <em>Random</em> — each location independently gets a random item. <em>Random (Evenly Distribute)</em> — all items in the pool appear as equally often as possible.</p>
+            <p><em>Ban Bad Items</em> — excludes cheap/situational items so every replaced item is at least somewhat useful.</p>
+            <p><em>Zero Grinding</em> — adds Rare Candy to Viridian Mart for $10, available from the very start of the game.</p>
+            <p><em>Elite 4 Prep</em> — stocks the Indigo Plateau Lobby shop with Rare Candy, Full Restore, Max Elixir, and Max Revive for $10 each.</p>
           </div>
         </div>
       </div>
 
-      <!-- ── Seeds & sharing ─────────────────────────────────────────── -->
       <div class="section">
         <div class="section-title">Seeds &amp; Sharing</div>
         <div class="how-note success">
@@ -1370,17 +1182,14 @@
         </ul>
       </div>
 
-      <!-- ── Tips & notes ────────────────────────────────────────────── -->
       <div class="section">
         <div class="section-title">Tips &amp; Notes</div>
         <ul class="how-tip-list">
-          <li><strong>The Source Directory is never modified.</strong> The randomizer copies the entire source to the Output Directory first, then applies all changes there. Your original Crystal Legacy source stays clean.</li>
-          <li><strong>The Output Directory is overwritten completely on every run.</strong> Don't store anything important in it — only keep your saved <code>.gbc</code> files, which you place elsewhere via the save dialog.</li>
+          <li><strong>The Source Directory is never modified.</strong> The randomizer copies the entire source to the Output Directory first, then applies all changes there. Your original Yellow Legacy source stays clean.</li>
+          <li><strong>The Output Directory is overwritten completely on every run.</strong> Don't store anything important in it — only keep your saved <code>.gb</code> files, which you place elsewhere via the save dialog.</li>
           <li><strong>Recommended settings for a fun randomized run:</strong> Wild = Random, Trainers = Random, Full HM Compatibility = ON. These give the best experience without making the game impossible to complete.</li>
-          <li><strong>RGBDS version matters.</strong> Only v0.5.2 works. If you see assembler errors mentioning <code>MAJOR</code> or undefined macros, you have a newer RGBDS installed. Replace it with v0.5.2.</li>
-          <li><strong>The log panel shows exactly what changed.</strong> Click <em>▶ Show Log</em> at the bottom of the window to see every species replacement, item change, and compiler line. If the build fails, the error will appear there.</li>
-          <li><strong>Playing without a real-time clock?</strong> Most emulators need to be configured with a clock, or use one that supports it (mGBA does). If you play without a clock, uncheck <em>Use Time-Based Encounters</em> so morning/day/night slots all show the same Pokémon.</li>
-          <li><strong>The .gbc file</strong> works in any GBC-compatible emulator (mGBA, BGB, RetroArch) and on real hardware via an EZ-Flash or similar flash cartridge.</li>
+          <li><strong>The log panel shows exactly what changed.</strong> Click <em>▶ Show Log</em> at the bottom of the window to see every species replacement and compiler line. If the build fails, the error will appear there.</li>
+          <li><strong>The .gb file</strong> works in any GB-compatible emulator (mGBA, BGB, RetroArch) and on real hardware via an EZ-Flash or similar flash cartridge.</li>
         </ul>
       </div>
 
@@ -1416,12 +1225,12 @@
 <!-- Log -->
 <div class="log-wrap">
   <div class="log-toggle" onclick="toggleLog()" id="logToggle">▶ Show Log</div>
-  <pre id="log-box"></pre>
+  <div id="log-box"></div>
 </div>
 
 <script>
 // ---------------------------------------------------------------------------
-// Pokemon list (Gen 1+2, 251 total)
+// Pokemon list (Gen 1 only, 151 total)
 // ---------------------------------------------------------------------------
 const POKEMON = [
   "Bulbasaur","Ivysaur","Venusaur","Charmander","Charmeleon","Charizard",
@@ -1448,22 +1257,6 @@ const POKEMON = [
   "Flareon","Porygon","Omanyte","Omastar","Kabuto","Kabutops",
   "Aerodactyl","Snorlax","Articuno","Zapdos","Moltres","Dratini",
   "Dragonair","Dragonite","Mewtwo","Mew",
-  "Chikorita","Bayleef","Meganium","Cyndaquil","Quilava","Typhlosion",
-  "Totodile","Croconaw","Feraligatr","Sentret","Furret","Hoothoot",
-  "Noctowl","Ledyba","Ledian","Spinarak","Ariados","Crobat","Chinchou",
-  "Lanturn","Pichu","Cleffa","Igglybuff","Togepi","Togetic","Natu","Xatu",
-  "Mareep","Flaaffy","Ampharos","Bellossom","Marill","Azumarill",
-  "Sudowoodo","Politoed","Hoppip","Skiploom","Jumpluff","Aipom",
-  "Sunkern","Sunflora","Yanma","Wooper","Quagsire","Espeon","Umbreon",
-  "Murkrow","Slowking","Misdreavus","Unown","Wobbuffet","Girafarig",
-  "Pineco","Forretress","Dunsparce","Gligar","Steelix","Snubbull",
-  "Granbull","Qwilfish","Scizor","Shuckle","Heracross","Sneasel",
-  "Teddiursa","Ursaring","Slugma","Magcargo","Swinub","Piloswine",
-  "Corsola","Remoraid","Octillery","Delibird","Mantine","Skarmory",
-  "Houndour","Houndoom","Kingdra","Phanpy","Donphan","Porygon2",
-  "Stantler","Smeargle","Tyrogue","Hitmontop","Smoochum","Elekid",
-  "Magby","Miltank","Blissey","Raikou","Entei","Suicune","Larvitar",
-  "Pupitar","Tyranitar","Lugia","Ho-Oh","Celebi"
 ];
 
 // Generate initial seed
@@ -1483,35 +1276,18 @@ function showTab(name, btn) {
 }
 
 // ---------------------------------------------------------------------------
-// Starter mode toggle
+// Starter mode toggle (Yellow: single custom slot, no held items)
 // ---------------------------------------------------------------------------
 function onStarterModeChange() {
-  const mode    = document.querySelector('input[name="starterMode"]:checked').value;
-  const grid    = document.getElementById('customStarterGrid');
-  const subOpts = document.getElementById('starterSubOptions');
-  const active  = (mode !== 'unchanged');
-
-  grid.style.display         = (mode === 'custom') ? 'grid' : 'none';
-  subOpts.style.opacity      = active ? '1'    : '.35';
-  subOpts.style.pointerEvents = active ? 'auto' : 'none';
-
-  // Keep "Ban Bad Items" nested row in sync with the Randomize Items checkbox
-  syncStarterBanBadItems();
+  const mode = document.querySelector('input[name="starterMode"]:checked').value;
+  const grid = document.getElementById('customStarterGrid');
+  grid.style.display = (mode === 'custom') ? 'grid' : 'none';
 }
-
-function syncStarterBanBadItems() {
-  const randItems = document.getElementById('starterRandItems');
-  const banRow    = document.getElementById('starterBanBadItemsRow');
-  const on        = randItems && randItems.checked;
-  banRow.style.opacity       = on ? '1'    : '.35';
-  banRow.style.pointerEvents = on ? 'auto' : 'none';
-}
-
-// Run once on load to set initial state (random is checked by default)
 onStarterModeChange();
 
+
 // ---------------------------------------------------------------------------
-// In-Game Trades mode — show/hide sub-options
+// In-Game Trades mode
 // ---------------------------------------------------------------------------
 function onTradeModeChange() {
   const mode = document.querySelector('input[name="tradeMode"]:checked').value;
@@ -1522,11 +1298,11 @@ function onTradeModeChange() {
 }
 
 // ---------------------------------------------------------------------------
-// Wild Pokemon mode — show/hide Additional Rule + Extra sections
+// Wild Pokemon mode
 // ---------------------------------------------------------------------------
 function onWildModeChange() {
-  const mode    = document.querySelector('input[name="wildMode"]:checked').value;
-  const active  = (mode !== 'unchanged');
+  const mode   = document.querySelector('input[name="wildMode"]:checked').value;
+  const active = (mode !== 'unchanged');
   ['wildRuleSection', 'wildExtraSection'].forEach(id => {
     const el = document.getElementById(id);
     el.style.opacity      = active ? '1'    : '.35';
@@ -1535,13 +1311,8 @@ function onWildModeChange() {
 }
 onWildModeChange();
 
-function syncWildBanBadHeld() {
-  const enabled = document.getElementById('wildRandHeldItems').checked;
-  document.getElementById('wildBanBadHeldRow').style.display = enabled ? 'flex' : 'none';
-}
-
 // ---------------------------------------------------------------------------
-// Trainer mode — show/hide Additional section; toggle Weight Types availability
+// Trainer mode
 // ---------------------------------------------------------------------------
 function onTrainerModeChange() {
   const mode   = document.querySelector('input[name="trainerMode"]:checked').value;
@@ -1553,7 +1324,6 @@ function onTrainerModeChange() {
     el.style.pointerEvents = active ? 'auto' : 'none';
   });
 
-  // Weight Types only makes sense for type-themed modes
   const typeThemed = (mode === 'type_themed' || mode === 'type_themed_boss');
   const wtRow = document.getElementById('trainerWeightTypesRow');
   wtRow.style.opacity      = typeThemed ? '1'    : '.35';
@@ -1568,12 +1338,12 @@ function syncTrainerForceEvolved() {
 }
 
 // ---------------------------------------------------------------------------
-// Static Pokemon mode (no UI changes needed — radios only)
+// Static Pokemon mode
 // ---------------------------------------------------------------------------
-function onStaticModeChange() { /* reserved for future filter toggles */ }
+function onStaticModeChange() { /* reserved */ }
 
 // ---------------------------------------------------------------------------
-// Items tab — show/hide ban-bad-items sub-option
+// Build ROM toggle
 // ---------------------------------------------------------------------------
 function onBuildRomChange() {
   const build = document.getElementById('buildRom').checked;
@@ -1582,9 +1352,11 @@ function onBuildRomChange() {
 }
 onBuildRomChange();
 
+// ---------------------------------------------------------------------------
+// Field Items mode
+// ---------------------------------------------------------------------------
 function onFieldItemsModeChange() {
   const mode = document.querySelector('input[name="fieldItemsMode"]:checked').value;
-  // Sub-options (Ban Bad Items) only apply when drawing from a pool, not Shuffle/Unchanged
   const active = (mode === 'random' || mode === 'random_even');
   const sub = document.getElementById('fieldItemsSubSection');
   sub.style.opacity       = active ? '1'    : '.35';
@@ -1634,18 +1406,13 @@ function appendLog(lines) {
 let polling = false;
 
 async function startRandomize() {
-  const src = document.getElementById('srcDir').value.trim();
-  const out = document.getElementById('outDir').value.trim();
+  const src  = document.getElementById('srcDir').value.trim();
+  const out  = document.getElementById('outDir').value.trim();
   const seed = document.getElementById('seed').value.trim();
 
   if (!src) { alert('Please set a Source Directory.'); return; }
   if (!out) { alert('Please set an Output Directory.'); return; }
   if (src === out) { alert('Source and Output must be different directories.'); return; }
-
-  // Gather settings
-  const genFilter = document.getElementById('gen1Only').checked ? 'gen1'
-                  : document.getElementById('gen2Only').checked ? 'gen2'
-                  : 'all';
 
   const starterMode = document.querySelector('input[name="starterMode"]:checked').value;
   const staticMode  = document.querySelector('input[name="staticMode"]:checked').value;
@@ -1654,28 +1421,19 @@ async function startRandomize() {
     sourceDir: src,
     outputDir: out,
     seed: seed,
-    genFilter,                                                    // global — applies to all tabs
+    genFilter: 'gen1',                                            // always Gen 1 for Yellow
     easierEvolutions:     document.getElementById('easierEvolutions').checked,
-    removeTimeEvolutions: document.getElementById('removeTimeEvolutions').checked,
     fullHMCompat:         document.getElementById('fullHMCompat').checked,
-    starterMode,                                                  // 'unchanged'|'custom'|'random'|'random_two_stage'
-    customStarters:     [0,1,2].map(i => { const v = _getStarterConst(i); return v ? SPECIES_CONSTS.indexOf(v) + 1 : 0; }),
-    starterRandItems:   document.getElementById('starterRandItems').checked,
-    starterBanBadItems: document.getElementById('starterBanBadItems').checked,
+    starterMode,
+    customStarter:      _getStarterConst(0),
+    customStarters:     [_getStarterConst(0)],
     tradeMode:          document.querySelector('input[name="tradeMode"]:checked').value,
     tradeRandNicknames: document.getElementById('tradeRandNicknames').checked,
-    tradeRandOT:        document.getElementById('tradeRandOT').checked,
-    tradeRandIVs:       document.getElementById('tradeRandIVs').checked,
-    tradeRandItems:     document.getElementById('tradeRandItems').checked,
-    staticMode,                                                   // 'unchanged'|'swap'|'random'|'similar_strength'
+    staticMode,
     wildMode:            document.querySelector('input[name="wildMode"]:checked').value,
     wildRule:            document.querySelector('input[name="wildRule"]:checked').value,
-    wildTimeBased:       document.getElementById('wildTimeBased').checked,
     wildNoLegendaries:   document.getElementById('wildNoLegendaries').checked,
-    wildRandHeldItems:        document.getElementById('wildRandHeldItems').checked,
-    wildBanBadHeldItems:      document.getElementById('wildBanBadHeldItems').checked,
     trainerMode:              document.querySelector('input[name="trainerMode"]:checked').value,
-    trainerRivalStarter:      document.getElementById('trainerRivalStarter').checked,
     trainerSimilarStrength:   document.getElementById('trainerSimilarStrength').checked,
     trainerNoLegend:          document.getElementById('trainerNoLegend').checked,
     trainerWeightTypes:       document.getElementById('trainerWeightTypes').checked,
@@ -1686,15 +1444,13 @@ async function startRandomize() {
     zeroGrinding:             document.getElementById('zeroGrinding').checked,
     elite4Prep:               document.getElementById('elite4Prep').checked,
     buildRom:                 document.getElementById('buildRom').checked,
-    // Starting items — only send if the feature is enabled
-    startingBagItems: document.getElementById('startingItemsEnable').checked
-                        ? _gatherItemRows('bagItemList') : [],
-    startingPCItems:  document.getElementById('startingItemsEnable').checked
-                        ? _gatherItemRows('pcItemList')  : [],
-    // PC Pokémon — only send if enabled
-    pcPokemonEnable: document.getElementById('pcPokemonEnable').checked,
-    pcPokemon: document.getElementById('pcPokemonEnable').checked
-                 ? _gatherPCMons() : [],
+    // Gifts (handed out by Daisy with the Town Map). Always enabled; empty
+    // lists are harmless no-ops on the backend. Item gifts always go to the Bag.
+    startingItemsEnable: true,
+    startingBagItems: _gatherItemRows('bagItemList'),
+    startingPCItems:  [],
+    pcPokemonEnable: true,
+    pcPokemon: _gatherPCMons(),
   };
 
   // Reset UI
@@ -1707,7 +1463,7 @@ async function startRandomize() {
   setStatus(payload.buildRom ? 'Randomizing & building ROM…' : 'Randomizing…');
 
   try {
-    const res = await fetch('/api/randomize', {
+    const res = await fetch('/api/randomize_yellow', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload),
@@ -1716,7 +1472,6 @@ async function startRandomize() {
     if (!data.ok) { alert('Error: ' + data.error); resetUI(); return; }
   } catch(e) { alert('Server error: ' + e); resetUI(); return; }
 
-  // Poll for log + status
   polling = true;
   pollStatus();
 }
@@ -1743,8 +1498,8 @@ async function pollStatus() {
         setStatus('Error: ' + statusData.error, true);
       } else {
         const built = document.getElementById('buildRom').checked;
-      setStatus(built ? 'Done! ✅  ROM built — check the log for the output path.'
-                      : 'Done! ✅  Source saved — open Terminal in the output folder and run: make');
+        setStatus(built ? 'Done! ✅  ROM built — check the log for the output path.'
+                        : 'Done! ✅  Source saved — open Terminal in the output folder and run: make');
       }
       return;
     }
@@ -1766,208 +1521,149 @@ function setStatus(msg, isError) {
 // ---------------------------------------------------------------------------
 // Starting Items
 // ---------------------------------------------------------------------------
-// Full item pool — TMs/HMs first (TM01–TM50, HM01–HM07), then Key Items
-// (alphabetical), then regular items (alphabetical).
-// Mirrors item_data.py STARTING_ITEM_POOL_ALL.
 const ITEM_POOL = [
-  // ── TMs ──────────────────────────────────────────────────────────────────
-  {c:"TM_DYNAMICPUNCH", n:"TM01 – Dynamic Punch"},
-  {c:"TM_HEADBUTT",     n:"TM02 – Headbutt"},
-  {c:"TM_CURSE",        n:"TM03 – Curse"},
-  {c:"TM_ROLLOUT",      n:"TM04 – Rollout"},
-  {c:"TM_ROAR",         n:"TM05 – Roar"},
-  {c:"TM_TOXIC",        n:"TM06 – Toxic"},
-  {c:"TM_ZAP_CANNON",   n:"TM07 – Zap Cannon"},
-  {c:"TM_ROCK_SMASH",   n:"TM08 – Rock Smash"},
-  {c:"TM_PSYCH_UP",     n:"TM09 – Psych Up"},
-  {c:"TM_HIDDEN_POWER", n:"TM10 – Hidden Power"},
-  {c:"TM_SUNNY_DAY",    n:"TM11 – Sunny Day"},
-  {c:"TM_SWEET_SCENT",  n:"TM12 – Sweet Scent"},
-  {c:"TM_SNORE",        n:"TM13 – Snore"},
-  {c:"TM_BLIZZARD",     n:"TM14 – Blizzard"},
-  {c:"TM_HYPER_BEAM",   n:"TM15 – Hyper Beam"},
-  {c:"TM_ICY_WIND",     n:"TM16 – Icy Wind"},
-  {c:"TM_PROTECT",      n:"TM17 – Protect"},
-  {c:"TM_RAIN_DANCE",   n:"TM18 – Rain Dance"},
-  {c:"TM_GIGA_DRAIN",   n:"TM19 – Giga Drain"},
-  {c:"TM_ENDURE",       n:"TM20 – Endure"},
-  {c:"TM_FRUSTRATION",  n:"TM21 – Frustration"},
-  {c:"TM_SOLARBEAM",    n:"TM22 – Solar Beam"},
-  {c:"TM_IRON_TAIL",    n:"TM23 – Iron Tail"},
-  {c:"TM_DRAGONBREATH", n:"TM24 – Dragonbreath"},
-  {c:"TM_THUNDER",      n:"TM25 – Thunder"},
-  {c:"TM_EARTHQUAKE",   n:"TM26 – Earthquake"},
-  {c:"TM_RETURN",       n:"TM27 – Return"},
-  {c:"TM_DIG",          n:"TM28 – Dig"},
-  {c:"TM_PSYCHIC_M",    n:"TM29 – Psychic"},
-  {c:"TM_SHADOW_BALL",  n:"TM30 – Shadow Ball"},
-  {c:"TM_MUD_SLAP",     n:"TM31 – Mud-Slap"},
-  {c:"TM_DOUBLE_TEAM",  n:"TM32 – Double Team"},
-  {c:"TM_ICE_PUNCH",    n:"TM33 – Ice Punch"},
-  {c:"TM_SWAGGER",      n:"TM34 – Swagger"},
-  {c:"TM_SLEEP_TALK",   n:"TM35 – Sleep Talk"},
-  {c:"TM_SLUDGE_BOMB",  n:"TM36 – Sludge Bomb"},
-  {c:"TM_SANDSTORM",    n:"TM37 – Sandstorm"},
-  {c:"TM_FIRE_BLAST",   n:"TM38 – Fire Blast"},
-  {c:"TM_SWIFT",        n:"TM39 – Swift"},
-  {c:"TM_DEFENSE_CURL", n:"TM40 – Defense Curl"},
-  {c:"TM_THUNDERPUNCH", n:"TM41 – ThunderPunch"},
-  {c:"TM_DREAM_EATER",  n:"TM42 – Dream Eater"},
-  {c:"TM_DETECT",       n:"TM43 – Detect"},
-  {c:"TM_REST",         n:"TM44 – Rest"},
-  {c:"TM_ATTRACT",      n:"TM45 – Attract"},
-  {c:"TM_THIEF",        n:"TM46 – Thief"},
-  {c:"TM_STEEL_WING",   n:"TM47 – Steel Wing"},
-  {c:"TM_FIRE_PUNCH",   n:"TM48 – Fire Punch"},
-  {c:"TM_FURY_CUTTER",  n:"TM49 – Fury Cutter"},
-  {c:"TM_NIGHTMARE",    n:"TM50 – Nightmare"},
   // ── HMs ──────────────────────────────────────────────────────────────────
   {c:"HM_CUT",          n:"HM01 – Cut"},
   {c:"HM_FLY",          n:"HM02 – Fly"},
   {c:"HM_SURF",         n:"HM03 – Surf"},
   {c:"HM_STRENGTH",     n:"HM04 – Strength"},
   {c:"HM_FLASH",        n:"HM05 – Flash"},
-  {c:"HM_WHIRLPOOL",    n:"HM06 – Whirlpool"},
-  {c:"HM_WATERFALL",    n:"HM07 – Waterfall"},
+  // ── TMs (TM01–TM50, Yellow Legacy move set) ───────────────────────────────
+  {c:"TM_MEGA_PUNCH",   n:"TM01 – Mega Punch"},
+  {c:"TM_RAZOR_WIND",   n:"TM02 – Razor Wind"},
+  {c:"TM_SWORDS_DANCE", n:"TM03 – Swords Dance"},
+  {c:"TM_FLAMETHROWER", n:"TM04 – Flamethrower"},
+  {c:"TM_MEGA_KICK",    n:"TM05 – Mega Kick"},
+  {c:"TM_TOXIC",        n:"TM06 – Toxic"},
+  {c:"TM_HORN_DRILL",   n:"TM07 – Horn Drill"},
+  {c:"TM_BODY_SLAM",    n:"TM08 – Body Slam"},
+  {c:"TM_TAKE_DOWN",    n:"TM09 – Take Down"},
+  {c:"TM_DOUBLE_EDGE",  n:"TM10 – Double-Edge"},
+  {c:"TM_BUBBLEBEAM",   n:"TM11 – BubbleBeam"},
+  {c:"TM_WATER_GUN",    n:"TM12 – Water Gun"},
+  {c:"TM_ICE_BEAM",     n:"TM13 – Ice Beam"},
+  {c:"TM_BLIZZARD",     n:"TM14 – Blizzard"},
+  {c:"TM_HYPER_BEAM",   n:"TM15 – Hyper Beam"},
+  {c:"TM_PAY_DAY",      n:"TM16 – Pay Day"},
+  {c:"TM_SUBMISSION",   n:"TM17 – Submission"},
+  {c:"TM_COUNTER",      n:"TM18 – Counter"},
+  {c:"TM_SEISMIC_TOSS", n:"TM19 – Seismic Toss"},
+  {c:"TM_RAGE",         n:"TM20 – Rage"},
+  {c:"TM_MEGA_DRAIN",   n:"TM21 – Mega Drain"},
+  {c:"TM_SOLARBEAM",    n:"TM22 – SolarBeam"},
+  {c:"TM_DRAGON_RAGE",  n:"TM23 – Dragon Rage"},
+  {c:"TM_THUNDERBOLT",  n:"TM24 – Thunderbolt"},
+  {c:"TM_THUNDER",      n:"TM25 – Thunder"},
+  {c:"TM_EARTHQUAKE",   n:"TM26 – Earthquake"},
+  {c:"TM_FISSURE",      n:"TM27 – Fissure"},
+  {c:"TM_DIG",          n:"TM28 – Dig"},
+  {c:"TM_PSYCHIC_M",    n:"TM29 – Psychic"},
+  {c:"TM_TELEPORT",     n:"TM30 – Teleport"},
+  {c:"TM_MIMIC",        n:"TM31 – Mimic"},
+  {c:"TM_DOUBLE_TEAM",  n:"TM32 – Double Team"},
+  {c:"TM_REFLECT",      n:"TM33 – Reflect"},
+  {c:"TM_BIDE",         n:"TM34 – Bide"},
+  {c:"TM_METRONOME",    n:"TM35 – Metronome"},
+  {c:"TM_SELFDESTRUCT", n:"TM36 – Self-Destruct"},
+  {c:"TM_EGG_BOMB",     n:"TM37 – Egg Bomb"},
+  {c:"TM_FIRE_BLAST",   n:"TM38 – Fire Blast"},
+  {c:"TM_SWIFT",        n:"TM39 – Swift"},
+  {c:"TM_SKULL_BASH",   n:"TM40 – Skull Bash"},
+  {c:"TM_SOFTBOILED",   n:"TM41 – Soft-Boiled"},
+  {c:"TM_DREAM_EATER",  n:"TM42 – Dream Eater"},
+  {c:"TM_SKY_ATTACK",   n:"TM43 – Sky Attack"},
+  {c:"TM_REST",         n:"TM44 – Rest"},
+  {c:"TM_THUNDER_WAVE", n:"TM45 – Thunder Wave"},
+  {c:"TM_PSYWAVE",      n:"TM46 – Psywave"},
+  {c:"TM_EXPLOSION",    n:"TM47 – Explosion"},
+  {c:"TM_ROCK_SLIDE",   n:"TM48 – Rock Slide"},
+  {c:"TM_TRI_ATTACK",   n:"TM49 – Tri Attack"},
+  {c:"TM_SUBSTITUTE",   n:"TM50 – Substitute"},
   // ── Key Items ─────────────────────────────────────────────────────────────
-  {c:"BASEMENT_KEY",    n:"Basement Key"},
   {c:"BICYCLE",         n:"Bicycle"},
-  {c:"BLUE_CARD",       n:"Blue Card"},
+  {c:"BIKE_VOUCHER",    n:"Bike Voucher"},
   {c:"CARD_KEY",        n:"Card Key"},
-  {c:"CLEAR_BELL",      n:"Clear Bell"},
   {c:"COIN_CASE",       n:"Coin Case"},
-  {c:"EXP_SHARE",       n:"Exp. Share"},
-  {c:"GOLD_LEAF",       n:"Gold Leaf"},
+  {c:"DOME_FOSSIL",     n:"Dome Fossil"},
+  {c:"EXP_ALL",         n:"Exp. All"},
+  {c:"GOLD_TEETH",      n:"Gold Teeth"},
   {c:"GOOD_ROD",        n:"Good Rod"},
+  {c:"HELIX_FOSSIL",    n:"Helix Fossil"},
   {c:"ITEMFINDER",      n:"Itemfinder"},
-  {c:"LOST_ITEM",       n:"Lost Item"},
-  {c:"MACHINE_PART",    n:"Machine Part"},
-  {c:"MYSTERY_EGG",     n:"Mystery Egg"},
+  {c:"LIFT_KEY",        n:"Lift Key"},
+  {c:"OAKS_PARCEL",     n:"Oak's Parcel"},
+  {c:"OLD_AMBER",       n:"Old Amber"},
   {c:"OLD_ROD",         n:"Old Rod"},
-  {c:"PASS",            n:"Pass"},
   {c:"POKE_FLUTE",      n:"Poké Flute"},
-  {c:"RAINBOW_WING",    n:"Rainbow Wing"},
-  {c:"RED_SCALE",       n:"Red Scale"},
-  {c:"S_S_TICKET",      n:"S.S. Ticket"},
-  {c:"SECRETPOTION",    n:"SecretPotion"},
-  {c:"SILVER_LEAF",     n:"Silver Leaf"},
-  {c:"SILVER_WING",     n:"Silver Wing"},
-  {c:"SQUIRTBOTTLE",    n:"Squirt Bottle"},
+  {c:"SECRET_KEY",      n:"Secret Key"},
+  {c:"SILPH_SCOPE",     n:"Silph Scope"},
+  {c:"SS_TICKET",       n:"S.S. Ticket"},
   {c:"SUPER_ROD",       n:"Super Rod"},
   {c:"TOWN_MAP",        n:"Town Map"},
   // ── Regular items (alphabetical) ─────────────────────────────────────────
-  {c:"AMULET_COIN",    n:"Amulet Coin"},
-  {c:"ANTIDOTE",       n:"Antidote"},
-  {c:"AWAKENING",      n:"Awakening"},
-  {c:"BERRY",          n:"Berry"},
-  {c:"BERSERK_GENE",   n:"Berserk Gene"},
-  {c:"BLACKBELT_I",    n:"Black Belt"},
-  {c:"BLACKGLASSES",   n:"BlackGlasses"},
-  {c:"BIG_MUSHROOM",   n:"Big Mushroom"},
-  {c:"BIG_PEARL",      n:"Big Pearl"},
-  {c:"BRIGHTPOWDER",   n:"BrightPowder"},
-  {c:"BURN_HEAL",      n:"Burn Heal"},
-  {c:"CALCIUM",        n:"Calcium"},
-  {c:"CARBOS",         n:"Carbos"},
-  {c:"CHARCOAL",       n:"Charcoal"},
-  {c:"DIRE_HIT",       n:"Dire Hit"},
-  {c:"DRAGON_FANG",    n:"Dragon Fang"},
-  {c:"DRAGON_SCALE",   n:"Dragon Scale"},
-  {c:"ELIXER",         n:"Elixir"},
-  {c:"ESCAPE_ROPE",    n:"Escape Rope"},
-  {c:"ETHER",          n:"Ether"},
-  {c:"FAST_BALL",      n:"Fast Ball"},
-  {c:"FIRE_STONE",     n:"Fire Stone"},
-  {c:"FOCUS_BAND",     n:"Focus Band"},
-  {c:"FRESH_WATER",    n:"Fresh Water"},
-  {c:"FRIEND_BALL",    n:"Friend Ball"},
-  {c:"FULL_HEAL",      n:"Full Heal"},
-  {c:"FULL_RESTORE",   n:"Full Restore"},
-  {c:"GOLD_BERRY",     n:"Gold Berry"},
-  {c:"GREAT_BALL",     n:"Great Ball"},
-  {c:"GUARD_SPEC",     n:"Guard Spec."},
-  {c:"HARD_STONE",     n:"Hard Stone"},
-  {c:"HEAVY_BALL",     n:"Heavy Ball"},
-  {c:"HP_UP",          n:"HP Up"},
-  {c:"HYPER_POTION",   n:"Hyper Potion"},
-  {c:"ICE_HEAL",       n:"Ice Heal"},
-  {c:"IRON",           n:"Iron"},
-  {c:"KINGS_ROCK",     n:"King's Rock"},
-  {c:"LEAF_STONE",     n:"Leaf Stone"},
-  {c:"LEFTOVERS",      n:"Leftovers"},
-  {c:"LEMONADE",       n:"Lemonade"},
-  {c:"LEVEL_BALL",     n:"Level Ball"},
-  {c:"LIGHT_BALL",     n:"Light Ball"},
-  {c:"LOVE_BALL",      n:"Love Ball"},
-  {c:"LUCKY_EGG",      n:"Lucky Egg"},
-  {c:"LUCKY_PUNCH",    n:"Lucky Punch"},
-  {c:"LURE_BALL",      n:"Lure Ball"},
-  {c:"MAGNET",         n:"Magnet"},
-  {c:"MASTER_BALL",    n:"Master Ball"},
-  {c:"MAX_ELIXER",     n:"Max Elixir"},
-  {c:"MAX_ETHER",      n:"Max Ether"},
-  {c:"MAX_POTION",     n:"Max Potion"},
-  {c:"MAX_REPEL",      n:"Max Repel"},
-  {c:"MAX_REVIVE",     n:"Max Revive"},
-  {c:"METAL_COAT",     n:"Metal Coat"},
-  {c:"METAL_POWDER",   n:"Metal Powder"},
-  {c:"MIRACLE_SEED",   n:"Miracle Seed"},
-  {c:"MOON_BALL",      n:"Moon Ball"},
-  {c:"MOON_STONE",     n:"Moon Stone"},
-  {c:"MOOMOO_MILK",    n:"MooMoo Milk"},
-  {c:"MYSTERYBERRY",   n:"MysteryBerry"},
-  {c:"MYSTIC_WATER",   n:"Mystic Water"},
-  {c:"NEVERMELTICE",   n:"NeverMeltIce"},
-  {c:"NUGGET",         n:"Nugget"},
-  {c:"PARK_BALL",      n:"Park Ball"},
-  {c:"PARLYZ_HEAL",    n:"Parlyz Heal"},
-  {c:"PEARL",          n:"Pearl"},
-  {c:"PINK_BOW",       n:"Pink Bow"},
-  {c:"POISON_BARB",    n:"Poison Barb"},
-  {c:"POKE_BALL",      n:"Poké Ball"},
-  {c:"POLKADOT_BOW",   n:"Polkadot Bow"},
-  {c:"POTION",         n:"Potion"},
-  {c:"PP_UP",          n:"PP Up"},
-  {c:"PROTEIN",        n:"Protein"},
-  {c:"PRZCUREBERRY",   n:"PRZCureberry"},
-  {c:"PSNCUREBERRY",   n:"PSNCureberry"},
-  {c:"QUICK_CLAW",     n:"Quick Claw"},
-  {c:"RARE_CANDY",     n:"Rare Candy"},
-  {c:"REPEL",          n:"Repel"},
-  {c:"REVIVE",         n:"Revive"},
-  {c:"SCOPE_LENS",     n:"Scope Lens"},
-  {c:"SHARP_BEAK",     n:"Sharp Beak"},
-  {c:"SILVERPOWDER",   n:"SilverPowder"},
-  {c:"SODA_POP",       n:"Soda Pop"},
-  {c:"SOFT_SAND",      n:"Soft Sand"},
-  {c:"SPELL_TAG",      n:"Spell Tag"},
-  {c:"STAR_PIECE",     n:"Star Piece"},
-  {c:"STARDUST",       n:"Stardust"},
-  {c:"SUN_STONE",      n:"Sun Stone"},
-  {c:"SUPER_POTION",   n:"Super Potion"},
-  {c:"SUPER_REPEL",    n:"Super Repel"},
-  {c:"THICK_CLUB",     n:"Thick Club"},
-  {c:"THUNDERSTONE",   n:"Thunderstone"},
-  {c:"TINYMUSHROOM",   n:"TinyMushroom"},
-  {c:"TWISTEDSPOON",   n:"TwistedSpoon"},
-  {c:"ULTRA_BALL",     n:"Ultra Ball"},
-  {c:"UP_GRADE",       n:"Up-Grade"},
-  {c:"WATER_STONE",    n:"Water Stone"},
-  {c:"X_ACCURACY",     n:"X Accuracy"},
-  {c:"X_ATTACK",       n:"X Attack"},
-  {c:"X_DEFEND",       n:"X Defend"},
-  {c:"X_SPECIAL",      n:"X Special"},
-  {c:"X_SPEED",        n:"X Speed"},
+  {c:"ANTIDOTE",        n:"Antidote"},
+  {c:"AWAKENING",       n:"Awakening"},
+  {c:"BIG_MUSHROOM",    n:"Big Mushroom"},
+  {c:"BIG_PEARL",       n:"Big Pearl"},
+  {c:"BURN_HEAL",       n:"Burn Heal"},
+  {c:"CALCIUM",         n:"Calcium"},
+  {c:"CARBOS",          n:"Carbos"},
+  {c:"DIRE_HIT",        n:"Dire Hit"},
+  {c:"ELIXER",          n:"Elixir"},
+  {c:"ESCAPE_ROPE",     n:"Escape Rope"},
+  {c:"ETHER",           n:"Ether"},
+  {c:"FIRE_STONE",      n:"Fire Stone"},
+  {c:"FRESH_WATER",     n:"Fresh Water"},
+  {c:"FULL_HEAL",       n:"Full Heal"},
+  {c:"FULL_RESTORE",    n:"Full Restore"},
+  {c:"GREAT_BALL",      n:"Great Ball"},
+  {c:"GUARD_SPEC",      n:"Guard Spec."},
+  {c:"HP_UP",           n:"HP Up"},
+  {c:"HYPER_POTION",    n:"Hyper Potion"},
+  {c:"ICE_HEAL",        n:"Ice Heal"},
+  {c:"IRON",            n:"Iron"},
+  {c:"LEAF_STONE",      n:"Leaf Stone"},
+  {c:"LEMONADE",        n:"Lemonade"},
+  {c:"MASTER_BALL",     n:"Master Ball"},
+  {c:"MAX_ELIXER",      n:"Max Elixir"},
+  {c:"MAX_ETHER",       n:"Max Ether"},
+  {c:"MAX_POTION",      n:"Max Potion"},
+  {c:"MAX_REPEL",       n:"Max Repel"},
+  {c:"MAX_REVIVE",      n:"Max Revive"},
+  {c:"MOON_STONE",      n:"Moon Stone"},
+  {c:"NUGGET",          n:"Nugget"},
+  {c:"PARLYZ_HEAL",     n:"Parlyz Heal"},
+  {c:"PEARL",           n:"Pearl"},
+  {c:"POKE_BALL",       n:"Poké Ball"},
+  {c:"POKE_DOLL",       n:"Poké Doll"},
+  {c:"POTION",          n:"Potion"},
+  {c:"PP_UP",           n:"PP Up"},
+  {c:"PROTEIN",         n:"Protein"},
+  {c:"RARE_CANDY",      n:"Rare Candy"},
+  {c:"REPEL",           n:"Repel"},
+  {c:"REVIVE",          n:"Revive"},
+  {c:"SODA_POP",        n:"Soda Pop"},
+  {c:"STAR_PIECE",      n:"Star Piece"},
+  {c:"STARDUST",        n:"Stardust"},
+  {c:"SUPER_POTION",    n:"Super Potion"},
+  {c:"SUPER_REPEL",     n:"Super Repel"},
+  {c:"THUNDER_STONE",   n:"Thunder Stone"},
+  {c:"TINYMUSHROOM",    n:"TinyMushroom"},
+  {c:"ULTRA_BALL",      n:"Ultra Ball"},
+  {c:"WATER_STONE",     n:"Water Stone"},
+  {c:"X_ACCURACY",      n:"X Accuracy"},
+  {c:"X_ATTACK",        n:"X Attack"},
+  {c:"X_DEFEND",        n:"X Defend"},
+  {c:"X_SPECIAL",       n:"X Special"},
+  {c:"X_SPEED",         n:"X Speed"},
 ];
 
-// No fetch needed — list is embedded above
 function ensureItemList() { return Promise.resolve(ITEM_POOL); }
-
-// ITEM_POOL with a leading "no item" sentinel (for held-item comboboxes)
 const ITEM_POOL_WITH_NONE = [{c:"", n:"— No held item —"}, ...ITEM_POOL];
 
 // ---------------------------------------------------------------------------
-// Species pool — 251 Pokémon, dex order
+// Species pool — Gen 1 only, 151 Pokémon (dex order)
+// Yellow-specific: FARFETCHD (no apostrophe), MR_MIME (single underscore)
 // ---------------------------------------------------------------------------
 const SPECIES_CONSTS = [
   "BULBASAUR","IVYSAUR","VENUSAUR","CHARMANDER","CHARMELEON","CHARIZARD",
@@ -1983,299 +1679,191 @@ const SPECIES_CONSTS = [
   "POLIWRATH","ABRA","KADABRA","ALAKAZAM","MACHOP","MACHOKE","MACHAMP",
   "BELLSPROUT","WEEPINBELL","VICTREEBEL","TENTACOOL","TENTACRUEL",
   "GEODUDE","GRAVELER","GOLEM","PONYTA","RAPIDASH","SLOWPOKE","SLOWBRO",
-  "MAGNEMITE","MAGNETON","FARFETCH_D","DODUO","DODRIO","SEEL","DEWGONG",
+  "MAGNEMITE","MAGNETON","FARFETCHD","DODUO","DODRIO","SEEL","DEWGONG",
   "GRIMER","MUK","SHELLDER","CLOYSTER","GASTLY","HAUNTER","GENGAR",
   "ONIX","DROWZEE","HYPNO","KRABBY","KINGLER","VOLTORB","ELECTRODE",
   "EXEGGCUTE","EXEGGUTOR","CUBONE","MAROWAK","HITMONLEE","HITMONCHAN",
   "LICKITUNG","KOFFING","WEEZING","RHYHORN","RHYDON","CHANSEY","TANGELA",
   "KANGASKHAN","HORSEA","SEADRA","GOLDEEN","SEAKING","STARYU","STARMIE",
-  "MR__MIME","SCYTHER","JYNX","ELECTABUZZ","MAGMAR","PINSIR","TAUROS",
+  "MR_MIME","SCYTHER","JYNX","ELECTABUZZ","MAGMAR","PINSIR","TAUROS",
   "MAGIKARP","GYARADOS","LAPRAS","DITTO","EEVEE","VAPOREON","JOLTEON",
   "FLAREON","PORYGON","OMANYTE","OMASTAR","KABUTO","KABUTOPS",
   "AERODACTYL","SNORLAX","ARTICUNO","ZAPDOS","MOLTRES","DRATINI",
   "DRAGONAIR","DRAGONITE","MEWTWO","MEW",
-  "CHIKORITA","BAYLEEF","MEGANIUM","CYNDAQUIL","QUILAVA","TYPHLOSION",
-  "TOTODILE","CROCONAW","FERALIGATR","SENTRET","FURRET","HOOTHOOT",
-  "NOCTOWL","LEDYBA","LEDIAN","SPINARAK","ARIADOS","CROBAT","CHINCHOU",
-  "LANTURN","PICHU","CLEFFA","IGGLYBUFF","TOGEPI","TOGETIC","NATU","XATU",
-  "MAREEP","FLAAFFY","AMPHAROS","BELLOSSOM","MARILL","AZUMARILL",
-  "SUDOWOODO","POLITOED","HOPPIP","SKIPLOOM","JUMPLUFF","AIPOM",
-  "SUNKERN","SUNFLORA","YANMA","WOOPER","QUAGSIRE","ESPEON","UMBREON",
-  "MURKROW","SLOWKING","MISDREAVUS","UNOWN","WOBBUFFET","GIRAFARIG",
-  "PINECO","FORRETRESS","DUNSPARCE","GLIGAR","STEELIX","SNUBBULL",
-  "GRANBULL","QWILFISH","SCIZOR","SHUCKLE","HERACROSS","SNEASEL",
-  "TEDDIURSA","URSARING","SLUGMA","MAGCARGO","SWINUB","PILOSWINE",
-  "CORSOLA","REMORAID","OCTILLERY","DELIBIRD","MANTINE","SKARMORY",
-  "HOUNDOUR","HOUNDOOM","KINGDRA","PHANPY","DONPHAN","PORYGON2",
-  "STANTLER","SMEARGLE","TYROGUE","HITMONTOP","SMOOCHUM","ELEKID",
-  "MAGBY","MILTANK","BLISSEY","RAIKOU","ENTEI","SUICUNE","LARVITAR",
-  "PUPITAR","TYRANITAR","LUGIA","HO_OH","CELEBI"
 ];
-// SPECIES_POOL pairs each constant with its display name (from POKEMON array)
 const SPECIES_POOL = POKEMON.map((name, i) => ({c: SPECIES_CONSTS[i], n: name}));
 
 // ---------------------------------------------------------------------------
-// Move pool — NO_MOVE first, then 251 Crystal moves
+// Move pool — Gen 1 only (moves 1–165, Pound through Struggle)
 // ---------------------------------------------------------------------------
 const MOVE_POOL = [
-  {c:"NO_MOVE",      n:"— None —",      pp:0},
-  {c:"POUND",        n:"Pound",          pp:35},
-  {c:"KARATE_CHOP",  n:"Karate Chop",    pp:25},
-  {c:"DOUBLESLAP",   n:"Double Slap",    pp:35},
-  {c:"COMET_PUNCH",  n:"Comet Punch",    pp:25},
-  {c:"MEGA_PUNCH",   n:"Mega Punch",     pp:20},
-  {c:"PAY_DAY",      n:"Pay Day",        pp:20},
-  {c:"FIRE_PUNCH",   n:"Fire Punch",     pp:15},
-  {c:"ICE_PUNCH",    n:"Ice Punch",      pp:15},
-  {c:"THUNDERPUNCH", n:"ThunderPunch",   pp:15},
-  {c:"SCRATCH",      n:"Scratch",        pp:35},
-  {c:"VICEGRIP",     n:"Vise Grip",      pp:30},
-  {c:"GUILLOTINE",   n:"Guillotine",     pp:5},
-  {c:"RAZOR_WIND",   n:"Razor Wind",     pp:15},
-  {c:"SWORDS_DANCE", n:"Swords Dance",   pp:30},
-  {c:"CUT",          n:"Cut",            pp:30},
-  {c:"GUST",         n:"Gust",           pp:35},
-  {c:"WING_ATTACK",  n:"Wing Attack",    pp:35},
-  {c:"WHIRLWIND",    n:"Whirlwind",      pp:20},
-  {c:"FLY",          n:"Fly",            pp:15},
-  {c:"BIND",         n:"Bind",           pp:20},
-  {c:"SLAM",         n:"Slam",           pp:20},
-  {c:"VINE_WHIP",    n:"Vine Whip",      pp:25},
-  {c:"STOMP",        n:"Stomp",          pp:20},
-  {c:"DOUBLE_KICK",  n:"Double Kick",    pp:30},
-  {c:"MEGA_KICK",    n:"Mega Kick",      pp:10},
-  {c:"JUMP_KICK",    n:"Jump Kick",      pp:25},
-  {c:"ROLLING_KICK", n:"Rolling Kick",   pp:15},
-  {c:"SAND_ATTACK",  n:"Sand Attack",    pp:15},
-  {c:"HEADBUTT",     n:"Headbutt",       pp:15},
-  {c:"HORN_ATTACK",  n:"Horn Attack",    pp:25},
-  {c:"FURY_ATTACK",  n:"Fury Attack",    pp:20},
-  {c:"HORN_DRILL",   n:"Horn Drill",     pp:5},
-  {c:"TACKLE",       n:"Tackle",         pp:35},
-  {c:"BODY_SLAM",    n:"Body Slam",      pp:15},
-  {c:"WRAP",         n:"Wrap",           pp:20},
-  {c:"TAKE_DOWN",    n:"Take Down",      pp:20},
-  {c:"THRASH",       n:"Thrash",         pp:20},
-  {c:"DOUBLE_EDGE",  n:"Double Edge",    pp:15},
-  {c:"TAIL_WHIP",    n:"Tail Whip",      pp:30},
-  {c:"POISON_STING", n:"Poison Sting",   pp:35},
-  {c:"TWINEEDLE",    n:"Twineedle",      pp:20},
-  {c:"PIN_MISSILE",  n:"Pin Missile",    pp:30},
-  {c:"LEER",         n:"Leer",           pp:30},
-  {c:"BITE",         n:"Bite",           pp:25},
-  {c:"GROWL",        n:"Growl",          pp:40},
-  {c:"ROAR",         n:"Roar",           pp:20},
-  {c:"SING",         n:"Sing",           pp:15},
-  {c:"SUPERSONIC",   n:"Supersonic",     pp:20},
-  {c:"SONICBOOM",    n:"Sonic Boom",     pp:20},
-  {c:"DISABLE",      n:"Disable",        pp:20},
-  {c:"ACID",         n:"Acid",           pp:30},
-  {c:"EMBER",        n:"Ember",          pp:25},
-  {c:"FLAMETHROWER", n:"Flamethrower",   pp:15},
-  {c:"MIST",         n:"Mist",           pp:30},
-  {c:"WATER_GUN",    n:"Water Gun",      pp:25},
-  {c:"HYDRO_PUMP",   n:"Hydro Pump",     pp:10},
-  {c:"SURF",         n:"Surf",           pp:15},
-  {c:"ICE_BEAM",     n:"Ice Beam",       pp:15},
-  {c:"BLIZZARD",     n:"Blizzard",       pp:5},
-  {c:"PSYBEAM",      n:"Psybeam",        pp:20},
-  {c:"BUBBLEBEAM",   n:"Bubblebeam",     pp:20},
-  {c:"AURORA_BEAM",  n:"Aurora Beam",    pp:20},
-  {c:"HYPER_BEAM",   n:"Hyper Beam",     pp:5},
-  {c:"PECK",         n:"Peck",           pp:35},
-  {c:"DRILL_PECK",   n:"Drill Peck",     pp:20},
-  {c:"SUBMISSION",   n:"Submission",     pp:25},
-  {c:"LOW_KICK",     n:"Low Kick",       pp:20},
-  {c:"COUNTER",      n:"Counter",        pp:20},
-  {c:"SEISMIC_TOSS", n:"Seismic Toss",   pp:20},
-  {c:"STRENGTH",     n:"Strength",       pp:15},
-  {c:"ABSORB",       n:"Absorb",         pp:25},
-  {c:"MEGA_DRAIN",   n:"Mega Drain",     pp:20},
-  {c:"LEECH_SEED",   n:"Leech Seed",     pp:10},
-  {c:"GROWTH",       n:"Growth",         pp:40},
-  {c:"RAZOR_LEAF",   n:"Razor Leaf",     pp:25},
-  {c:"SOLARBEAM",    n:"SolarBeam",      pp:10},
-  {c:"POISONPOWDER", n:"PoisonPowder",   pp:35},
-  {c:"STUN_SPORE",   n:"Stun Spore",     pp:30},
-  {c:"SLEEP_POWDER", n:"Sleep Powder",   pp:15},
-  {c:"PETAL_DANCE",  n:"Petal Dance",    pp:20},
-  {c:"STRING_SHOT",  n:"String Shot",    pp:40},
-  {c:"DRAGON_RAGE",  n:"Dragon Rage",    pp:20},
-  {c:"FIRE_SPIN",    n:"Fire Spin",      pp:15},
-  {c:"THUNDERSHOCK", n:"ThunderShock",   pp:30},
-  {c:"THUNDERBOLT",  n:"Thunderbolt",    pp:15},
-  {c:"THUNDER_WAVE", n:"Thunder Wave",   pp:20},
-  {c:"THUNDER",      n:"Thunder",        pp:10},
-  {c:"ROCK_THROW",   n:"Rock Throw",     pp:25},
-  {c:"EARTHQUAKE",   n:"Earthquake",     pp:10},
-  {c:"FISSURE",      n:"Fissure",        pp:5},
-  {c:"DIG",          n:"Dig",            pp:20},
-  {c:"TOXIC",        n:"Toxic",          pp:10},
-  {c:"CONFUSION",    n:"Confusion",      pp:25},
-  {c:"PSYCHIC_M",    n:"Psychic",        pp:15},
-  {c:"HYPNOSIS",     n:"Hypnosis",       pp:20},
-  {c:"MEDITATE",     n:"Meditate",       pp:40},
-  {c:"AGILITY",      n:"Agility",        pp:30},
-  {c:"QUICK_ATTACK", n:"Quick Attack",   pp:30},
-  {c:"RAGE",         n:"Rage",           pp:20},
-  {c:"TELEPORT",     n:"Teleport",       pp:20},
-  {c:"NIGHT_SHADE",  n:"Night Shade",    pp:15},
-  {c:"MIMIC",        n:"Mimic",          pp:10},
-  {c:"SCREECH",      n:"Screech",        pp:40},
-  {c:"DOUBLE_TEAM",  n:"Double Team",    pp:15},
-  {c:"RECOVER",      n:"Recover",        pp:5},
-  {c:"HARDEN",       n:"Harden",         pp:30},
-  {c:"MINIMIZE",     n:"Minimize",       pp:20},
-  {c:"SMOKESCREEN",  n:"Smokescreen",    pp:20},
-  {c:"CONFUSE_RAY",  n:"Confuse Ray",    pp:10},
-  {c:"WITHDRAW",     n:"Withdraw",       pp:40},
-  {c:"DEFENSE_CURL", n:"Defense Curl",   pp:40},
-  {c:"BARRIER",      n:"Barrier",        pp:30},
-  {c:"LIGHT_SCREEN", n:"Light Screen",   pp:30},
-  {c:"HAZE",         n:"Haze",           pp:30},
-  {c:"REFLECT",      n:"Reflect",        pp:20},
-  {c:"FOCUS_ENERGY", n:"Focus Energy",   pp:30},
-  {c:"BIDE",         n:"Bide",           pp:10},
-  {c:"METRONOME",    n:"Metronome",      pp:10},
-  {c:"MIRROR_MOVE",  n:"Mirror Move",    pp:20},
-  {c:"SELFDESTRUCT", n:"Self-Destruct",  pp:5},
-  {c:"EGG_BOMB",     n:"Egg Bomb",       pp:10},
-  {c:"LICK",         n:"Lick",           pp:30},
-  {c:"SMOG",         n:"Smog",           pp:20},
-  {c:"SLUDGE",       n:"Sludge",         pp:20},
-  {c:"BONE_CLUB",    n:"Bone Club",      pp:20},
-  {c:"FIRE_BLAST",   n:"Fire Blast",     pp:5},
-  {c:"WATERFALL",    n:"Waterfall",      pp:15},
-  {c:"CLAMP",        n:"Clamp",          pp:10},
-  {c:"SWIFT",        n:"Swift",          pp:20},
-  {c:"SKULL_BASH",   n:"Skull Bash",     pp:15},
-  {c:"SPIKE_CANNON", n:"Spike Cannon",   pp:15},
-  {c:"CONSTRICT",    n:"Constrict",      pp:35},
-  {c:"AMNESIA",      n:"Amnesia",        pp:20},
-  {c:"KINESIS",      n:"Kinesis",        pp:15},
-  {c:"SOFTBOILED",   n:"Soft-Boiled",    pp:5},
-  {c:"HI_JUMP_KICK", n:"Hi Jump Kick",   pp:20},
-  {c:"GLARE",        n:"Glare",          pp:30},
-  {c:"DREAM_EATER",  n:"Dream Eater",    pp:15},
-  {c:"POISON_GAS",   n:"Poison Gas",     pp:40},
-  {c:"BARRAGE",      n:"Barrage",        pp:20},
-  {c:"LEECH_LIFE",   n:"Leech Life",     pp:25},
-  {c:"LOVELY_KISS",  n:"Lovely Kiss",    pp:10},
-  {c:"SKY_ATTACK",   n:"Sky Attack",     pp:10},
-  {c:"TRANSFORM",    n:"Transform",      pp:10},
-  {c:"BUBBLE",       n:"Bubble",         pp:30},
-  {c:"DIZZY_PUNCH",  n:"Dizzy Punch",    pp:20},
-  {c:"SPORE",        n:"Spore",          pp:15},
-  {c:"FLASH",        n:"Flash",          pp:20},
-  {c:"PSYWAVE",      n:"Psywave",        pp:15},
-  {c:"SPLASH",       n:"Splash",         pp:40},
-  {c:"ACID_ARMOR",   n:"Acid Armor",     pp:40},
-  {c:"CRABHAMMER",   n:"Crabhammer",     pp:10},
-  {c:"EXPLOSION",    n:"Explosion",      pp:5},
-  {c:"FURY_SWIPES",  n:"Fury Swipes",    pp:20},
-  {c:"BONEMERANG",   n:"Bonemerang",     pp:20},
-  {c:"REST",         n:"Rest",           pp:5},
-  {c:"ROCK_SLIDE",   n:"Rock Slide",     pp:15},
-  {c:"HYPER_FANG",   n:"Hyper Fang",     pp:15},
-  {c:"SHARPEN",      n:"Sharpen",        pp:30},
-  {c:"CONVERSION",   n:"Conversion",     pp:30},
-  {c:"TRI_ATTACK",   n:"Tri Attack",     pp:15},
-  {c:"SUPER_FANG",   n:"Super Fang",     pp:10},
-  {c:"SLASH",        n:"Slash",          pp:20},
-  {c:"SUBSTITUTE",   n:"Substitute",     pp:10},
-  {c:"STRUGGLE",     n:"Struggle",       pp:1},
-  {c:"SKETCH",       n:"Sketch",         pp:1},
-  {c:"TRIPLE_KICK",  n:"Triple Kick",    pp:15},
-  {c:"THIEF",        n:"Thief",          pp:15},
-  {c:"SPIDER_WEB",   n:"Spider Web",     pp:10},
-  {c:"MIND_READER",  n:"Mind Reader",    pp:5},
-  {c:"NIGHTMARE",    n:"Nightmare",      pp:15},
-  {c:"FLAME_WHEEL",  n:"Flame Wheel",    pp:25},
-  {c:"SNORE",        n:"Snore",          pp:15},
-  {c:"CURSE",        n:"Curse",          pp:10},
-  {c:"FLAIL",        n:"Flail",          pp:15},
-  {c:"CONVERSION2",  n:"Conversion 2",   pp:30},
-  {c:"AEROBLAST",    n:"Aeroblast",      pp:10},
-  {c:"COTTON_SPORE", n:"Cotton Spore",   pp:40},
-  {c:"REVERSAL",     n:"Reversal",       pp:15},
-  {c:"SPITE",        n:"Spite",          pp:10},
-  {c:"POWDER_SNOW",  n:"Powder Snow",    pp:25},
-  {c:"PROTECT",      n:"Protect",        pp:10},
-  {c:"MACH_PUNCH",   n:"Mach Punch",     pp:30},
-  {c:"SCARY_FACE",   n:"Scary Face",     pp:10},
-  {c:"FAINT_ATTACK", n:"Faint Attack",   pp:20},
-  {c:"SWEET_KISS",   n:"Sweet Kiss",     pp:10},
-  {c:"BELLY_DRUM",   n:"Belly Drum",     pp:10},
-  {c:"SLUDGE_BOMB",  n:"Sludge Bomb",    pp:15},
-  {c:"MUD_SLAP",     n:"Mud-Slap",       pp:15},
-  {c:"OCTAZOOKA",    n:"Octazooka",      pp:15},
-  {c:"SPIKES",       n:"Spikes",         pp:20},
-  {c:"ZAP_CANNON",   n:"Zap Cannon",     pp:5},
-  {c:"FORESIGHT",    n:"Foresight",      pp:40},
-  {c:"DESTINY_BOND", n:"Destiny Bond",   pp:5},
-  {c:"PERISH_SONG",  n:"Perish Song",    pp:5},
-  {c:"ICY_WIND",     n:"Icy Wind",       pp:20},
-  {c:"DETECT",       n:"Detect",         pp:5},
-  {c:"BONE_RUSH",    n:"Bone Rush",      pp:20},
-  {c:"LOCK_ON",      n:"Lock-On",        pp:5},
-  {c:"OUTRAGE",      n:"Outrage",        pp:15},
-  {c:"SANDSTORM",    n:"Sandstorm",      pp:10},
-  {c:"GIGA_DRAIN",   n:"Giga Drain",     pp:15},
-  {c:"ENDURE",       n:"Endure",         pp:10},
-  {c:"CHARM",        n:"Charm",          pp:20},
-  {c:"ROLLOUT",      n:"Rollout",        pp:20},
-  {c:"FALSE_SWIPE",  n:"False Swipe",    pp:40},
-  {c:"SWAGGER",      n:"Swagger",        pp:15},
-  {c:"MILK_DRINK",   n:"Milk Drink",     pp:5},
-  {c:"SPARK",        n:"Spark",          pp:20},
-  {c:"FURY_CUTTER",  n:"Fury Cutter",    pp:20},
-  {c:"STEEL_WING",   n:"Steel Wing",     pp:25},
-  {c:"MEAN_LOOK",    n:"Mean Look",      pp:5},
-  {c:"ATTRACT",      n:"Attract",        pp:15},
-  {c:"SLEEP_TALK",   n:"Sleep Talk",     pp:10},
-  {c:"HEAL_BELL",    n:"Heal Bell",      pp:5},
-  {c:"RETURN",       n:"Return",         pp:20},
-  {c:"PRESENT",      n:"Present",        pp:15},
-  {c:"FRUSTRATION",  n:"Frustration",    pp:20},
-  {c:"SAFEGUARD",    n:"Safeguard",      pp:25},
-  {c:"PAIN_SPLIT",   n:"Pain Split",     pp:20},
-  {c:"SACRED_FIRE",  n:"Sacred Fire",    pp:10},
-  {c:"MAGNITUDE",    n:"Magnitude",      pp:30},
-  {c:"DYNAMICPUNCH", n:"DynamicPunch",   pp:10},
-  {c:"MEGAHORN",     n:"Megahorn",       pp:5},
-  {c:"DRAGONBREATH", n:"DragonBreath",   pp:20},
-  {c:"BATON_PASS",   n:"Baton Pass",     pp:40},
-  {c:"ENCORE",       n:"Encore",         pp:5},
-  {c:"PURSUIT",      n:"Pursuit",        pp:20},
-  {c:"RAPID_SPIN",   n:"Rapid Spin",     pp:40},
-  {c:"SWEET_SCENT",  n:"Sweet Scent",    pp:20},
-  {c:"IRON_TAIL",    n:"Iron Tail",      pp:15},
-  {c:"METAL_CLAW",   n:"Metal Claw",     pp:25},
-  {c:"VITAL_THROW",  n:"Vital Throw",    pp:10},
-  {c:"MORNING_SUN",  n:"Morning Sun",    pp:5},
-  {c:"SYNTHESIS",    n:"Synthesis",      pp:5},
-  {c:"MOONLIGHT",    n:"Moonlight",      pp:5},
-  {c:"HIDDEN_POWER", n:"Hidden Power",   pp:15},
-  {c:"CROSS_CHOP",   n:"Cross Chop",     pp:10},
-  {c:"TWISTER",      n:"Twister",        pp:20},
-  {c:"RAIN_DANCE",   n:"Rain Dance",     pp:10},
-  {c:"SUNNY_DAY",    n:"Sunny Day",      pp:10},
-  {c:"CRUNCH",       n:"Crunch",         pp:15},
-  {c:"MIRROR_COAT",  n:"Mirror Coat",    pp:20},
-  {c:"PSYCH_UP",     n:"Psych Up",       pp:10},
-  {c:"EXTREMESPEED", n:"ExtremeSpeed",   pp:10},
-  {c:"ANCIENTPOWER", n:"AncientPower",   pp:10},
-  {c:"SHADOW_BALL",  n:"Shadow Ball",    pp:15},
-  {c:"FUTURE_SIGHT", n:"Future Sight",   pp:15},
-  {c:"ROCK_SMASH",   n:"Rock Smash",     pp:15},
-  {c:"WHIRLPOOL",    n:"Whirlpool",      pp:15},
-  {c:"BEAT_UP",      n:"Beat Up",        pp:10},
+  {c:"NO_MOVE",        n:"— None —",       pp:0},
+  {c:"POUND",          n:"Pound",           pp:35},
+  {c:"KARATE_CHOP",    n:"Karate Chop",     pp:25},
+  {c:"DOUBLESLAP",     n:"Double Slap",     pp:35},
+  {c:"COMET_PUNCH",    n:"Comet Punch",     pp:25},
+  {c:"MEGA_PUNCH",     n:"Mega Punch",      pp:20},
+  {c:"PAY_DAY",        n:"Pay Day",         pp:20},
+  {c:"FIRE_PUNCH",     n:"Fire Punch",      pp:15},
+  {c:"ICE_PUNCH",      n:"Ice Punch",       pp:15},
+  {c:"THUNDERPUNCH",   n:"ThunderPunch",    pp:15},
+  {c:"SCRATCH",        n:"Scratch",         pp:35},
+  {c:"VICEGRIP",       n:"Vise Grip",       pp:30},
+  {c:"GUILLOTINE",     n:"Guillotine",      pp:5},
+  {c:"RAZOR_WIND",     n:"Razor Wind",      pp:15},
+  {c:"SWORDS_DANCE",   n:"Swords Dance",    pp:30},
+  {c:"CUT",            n:"Cut",             pp:30},
+  {c:"GUST",           n:"Gust",            pp:35},
+  {c:"WING_ATTACK",    n:"Wing Attack",     pp:35},
+  {c:"WHIRLWIND",      n:"Whirlwind",       pp:20},
+  {c:"FLY",            n:"Fly",             pp:15},
+  {c:"BIND",           n:"Bind",            pp:20},
+  {c:"SLAM",           n:"Slam",            pp:20},
+  {c:"VINE_WHIP",      n:"Vine Whip",       pp:25},
+  {c:"STOMP",          n:"Stomp",           pp:20},
+  {c:"DOUBLE_KICK",    n:"Double Kick",     pp:30},
+  {c:"MEGA_KICK",      n:"Mega Kick",       pp:10},
+  {c:"JUMP_KICK",      n:"Jump Kick",       pp:25},
+  {c:"ROLLING_KICK",   n:"Rolling Kick",    pp:15},
+  {c:"SAND_ATTACK",    n:"Sand Attack",     pp:15},
+  {c:"HEADBUTT",       n:"Headbutt",        pp:15},
+  {c:"HORN_ATTACK",    n:"Horn Attack",     pp:25},
+  {c:"FURY_ATTACK",    n:"Fury Attack",     pp:20},
+  {c:"HORN_DRILL",     n:"Horn Drill",      pp:5},
+  {c:"TACKLE",         n:"Tackle",          pp:35},
+  {c:"BODY_SLAM",      n:"Body Slam",       pp:15},
+  {c:"WRAP",           n:"Wrap",            pp:20},
+  {c:"TAKE_DOWN",      n:"Take Down",       pp:20},
+  {c:"THRASH",         n:"Thrash",          pp:20},
+  {c:"DOUBLE_EDGE",    n:"Double Edge",     pp:15},
+  {c:"TAIL_WHIP",      n:"Tail Whip",       pp:30},
+  {c:"POISON_STING",   n:"Poison Sting",    pp:35},
+  {c:"TWINEEDLE",      n:"Twineedle",       pp:20},
+  {c:"PIN_MISSILE",    n:"Pin Missile",     pp:30},
+  {c:"LEER",           n:"Leer",            pp:30},
+  {c:"BITE",           n:"Bite",            pp:25},
+  {c:"GROWL",          n:"Growl",           pp:40},
+  {c:"ROAR",           n:"Roar",            pp:20},
+  {c:"SING",           n:"Sing",            pp:15},
+  {c:"SUPERSONIC",     n:"Supersonic",      pp:20},
+  {c:"SONICBOOM",      n:"Sonic Boom",      pp:20},
+  {c:"DISABLE",        n:"Disable",         pp:20},
+  {c:"ACID",           n:"Acid",            pp:30},
+  {c:"EMBER",          n:"Ember",           pp:25},
+  {c:"FLAMETHROWER",   n:"Flamethrower",    pp:15},
+  {c:"MIST",           n:"Mist",            pp:30},
+  {c:"WATER_GUN",      n:"Water Gun",       pp:25},
+  {c:"HYDRO_PUMP",     n:"Hydro Pump",      pp:10},
+  {c:"SURF",           n:"Surf",            pp:15},
+  {c:"ICE_BEAM",       n:"Ice Beam",        pp:15},
+  {c:"BLIZZARD",       n:"Blizzard",        pp:5},
+  {c:"PSYBEAM",        n:"Psybeam",         pp:20},
+  {c:"BUBBLEBEAM",     n:"Bubblebeam",      pp:20},
+  {c:"AURORA_BEAM",    n:"Aurora Beam",     pp:20},
+  {c:"HYPER_BEAM",     n:"Hyper Beam",      pp:5},
+  {c:"PECK",           n:"Peck",            pp:35},
+  {c:"DRILL_PECK",     n:"Drill Peck",      pp:20},
+  {c:"SUBMISSION",     n:"Submission",      pp:25},
+  {c:"LOW_KICK",       n:"Low Kick",        pp:20},
+  {c:"COUNTER",        n:"Counter",         pp:20},
+  {c:"SEISMIC_TOSS",   n:"Seismic Toss",    pp:20},
+  {c:"STRENGTH",       n:"Strength",        pp:15},
+  {c:"ABSORB",         n:"Absorb",          pp:25},
+  {c:"MEGA_DRAIN",     n:"Mega Drain",      pp:20},
+  {c:"LEECH_SEED",     n:"Leech Seed",      pp:10},
+  {c:"GROWTH",         n:"Growth",          pp:40},
+  {c:"RAZOR_LEAF",     n:"Razor Leaf",      pp:25},
+  {c:"SOLARBEAM",      n:"SolarBeam",       pp:10},
+  {c:"POISONPOWDER",   n:"PoisonPowder",    pp:35},
+  {c:"STUN_SPORE",     n:"Stun Spore",      pp:30},
+  {c:"SLEEP_POWDER",   n:"Sleep Powder",    pp:15},
+  {c:"PETAL_DANCE",    n:"Petal Dance",     pp:20},
+  {c:"STRING_SHOT",    n:"String Shot",     pp:40},
+  {c:"DRAGON_RAGE",    n:"Dragon Rage",     pp:20},
+  {c:"FIRE_SPIN",      n:"Fire Spin",       pp:15},
+  {c:"THUNDERSHOCK",   n:"ThunderShock",    pp:30},
+  {c:"THUNDERBOLT",    n:"Thunderbolt",     pp:15},
+  {c:"THUNDER_WAVE",   n:"Thunder Wave",    pp:20},
+  {c:"THUNDER",        n:"Thunder",         pp:10},
+  {c:"ROCK_THROW",     n:"Rock Throw",      pp:25},
+  {c:"EARTHQUAKE",     n:"Earthquake",      pp:10},
+  {c:"FISSURE",        n:"Fissure",         pp:5},
+  {c:"DIG",            n:"Dig",             pp:20},
+  {c:"TOXIC",          n:"Toxic",           pp:10},
+  {c:"CONFUSION",      n:"Confusion",       pp:25},
+  {c:"PSYCHIC_M",      n:"Psychic",         pp:15},
+  {c:"HYPNOSIS",       n:"Hypnosis",        pp:20},
+  {c:"MEDITATE",       n:"Meditate",        pp:40},
+  {c:"AGILITY",        n:"Agility",         pp:30},
+  {c:"QUICK_ATTACK",   n:"Quick Attack",    pp:30},
+  {c:"RAGE",           n:"Rage",            pp:20},
+  {c:"TELEPORT",       n:"Teleport",        pp:20},
+  {c:"NIGHT_SHADE",    n:"Night Shade",     pp:15},
+  {c:"MIMIC",          n:"Mimic",           pp:10},
+  {c:"SCREECH",        n:"Screech",         pp:40},
+  {c:"DOUBLE_TEAM",    n:"Double Team",     pp:15},
+  {c:"RECOVER",        n:"Recover",         pp:5},
+  {c:"HARDEN",         n:"Harden",          pp:30},
+  {c:"MINIMIZE",       n:"Minimize",        pp:20},
+  {c:"SMOKESCREEN",    n:"Smokescreen",     pp:20},
+  {c:"CONFUSE_RAY",    n:"Confuse Ray",     pp:10},
+  {c:"WITHDRAW",       n:"Withdraw",        pp:40},
+  {c:"DEFENSE_CURL",   n:"Defense Curl",    pp:40},
+  {c:"BARRIER",        n:"Barrier",         pp:30},
+  {c:"LIGHT_SCREEN",   n:"Light Screen",    pp:30},
+  {c:"HAZE",           n:"Haze",            pp:30},
+  {c:"REFLECT",        n:"Reflect",         pp:20},
+  {c:"FOCUS_ENERGY",   n:"Focus Energy",    pp:30},
+  {c:"BIDE",           n:"Bide",            pp:10},
+  {c:"METRONOME",      n:"Metronome",       pp:10},
+  {c:"MIRROR_MOVE",    n:"Mirror Move",     pp:20},
+  {c:"SELFDESTRUCT",   n:"Self-Destruct",   pp:5},
+  {c:"EGG_BOMB",       n:"Egg Bomb",        pp:10},
+  {c:"LICK",           n:"Lick",            pp:30},
+  {c:"SMOG",           n:"Smog",            pp:20},
+  {c:"SLUDGE",         n:"Sludge",          pp:20},
+  {c:"BONE_CLUB",      n:"Bone Club",       pp:20},
+  {c:"FIRE_BLAST",     n:"Fire Blast",      pp:5},
+  {c:"WATERFALL",      n:"Waterfall",       pp:15},
+  {c:"CLAMP",          n:"Clamp",           pp:10},
+  {c:"SWIFT",          n:"Swift",           pp:20},
+  {c:"SKULL_BASH",     n:"Skull Bash",      pp:15},
+  {c:"SPIKE_CANNON",   n:"Spike Cannon",    pp:15},
+  {c:"CONSTRICT",      n:"Constrict",       pp:35},
+  {c:"AMNESIA",        n:"Amnesia",         pp:20},
+  {c:"KINESIS",        n:"Kinesis",         pp:15},
+  {c:"SOFTBOILED",     n:"Soft-Boiled",     pp:5},
+  {c:"HI_JUMP_KICK",   n:"Hi Jump Kick",    pp:20},
+  {c:"GLARE",          n:"Glare",           pp:30},
+  {c:"DREAM_EATER",    n:"Dream Eater",     pp:15},
+  {c:"POISON_GAS",     n:"Poison Gas",      pp:40},
+  {c:"BARRAGE",        n:"Barrage",         pp:20},
+  {c:"LEECH_LIFE",     n:"Leech Life",      pp:25},
+  {c:"LOVELY_KISS",    n:"Lovely Kiss",     pp:10},
+  {c:"SKY_ATTACK",     n:"Sky Attack",      pp:10},
+  {c:"TRANSFORM",      n:"Transform",       pp:10},
+  {c:"BUBBLE",         n:"Bubble",          pp:30},
+  {c:"DIZZY_PUNCH",    n:"Dizzy Punch",     pp:20},
+  {c:"SPORE",          n:"Spore",           pp:15},
+  {c:"FLASH",          n:"Flash",           pp:20},
+  {c:"PSYWAVE",        n:"Psywave",         pp:15},
+  {c:"SPLASH",         n:"Splash",          pp:40},
+  {c:"ACID_ARMOR",     n:"Acid Armor",      pp:40},
+  {c:"CRABHAMMER",     n:"Crabhammer",      pp:10},
+  {c:"EXPLOSION",      n:"Explosion",       pp:5},
+  {c:"FURY_SWIPES",    n:"Fury Swipes",     pp:20},
+  {c:"BONEMERANG",     n:"Bonemerang",      pp:20},
+  {c:"REST",           n:"Rest",            pp:5},
+  {c:"ROCK_SLIDE",     n:"Rock Slide",      pp:15},
+  {c:"HYPER_FANG",     n:"Hyper Fang",      pp:15},
+  {c:"SHARPEN",        n:"Sharpen",         pp:30},
+  {c:"CONVERSION",     n:"Conversion",      pp:30},
+  {c:"TRI_ATTACK",     n:"Tri Attack",      pp:15},
+  {c:"SUPER_FANG",     n:"Super Fang",      pp:10},
+  {c:"SLASH",          n:"Slash",           pp:20},
+  {c:"SUBSTITUTE",     n:"Substitute",      pp:10},
+  {c:"STRUGGLE",       n:"Struggle",        pp:1},
 ];
-
-function onStartingItemsChange() {
-  const enabled = document.getElementById('startingItemsEnable').checked;
-  document.getElementById('startingItemsBody').style.display = enabled ? 'block' : 'none';
-}
 
 function _updateCount(pocket) {
   const listId   = pocket === 'bag' ? 'bagItemList' : 'pcItemList';
@@ -2287,8 +1875,6 @@ function _updateCount(pocket) {
 
 // ---------------------------------------------------------------------------
 // Generalized searchable combobox factory
-// pool: array of {c, n} objects   selectedConst: pre-select this .c value
-// placeholder: input placeholder text   hiddenClass: className for hidden input
 // ---------------------------------------------------------------------------
 function _createCombobox(pool, selectedConst, placeholder, hiddenClass) {
   hiddenClass = hiddenClass || 'cb-hidden-value';
@@ -2387,34 +1973,30 @@ function _createCombobox(pool, selectedConst, placeholder, hiddenClass) {
   return wrap;
 }
 
-// Item combobox — thin wrapper keeping the original hidden-class name
 function _createItemCombobox(selectedConst) {
   return _createCombobox(ITEM_POOL, selectedConst, 'Search items…', 'item-const-value');
 }
 
 // ---------------------------------------------------------------------------
-// Custom starter comboboxes
+// Custom starter combobox (Yellow: single slot only)
 // ---------------------------------------------------------------------------
 function _initStarterComboboxes() {
-  [0,1,2].forEach(i => {
-    const container = document.getElementById('customCb'+i);
-    if (!container) return;
-    container.innerHTML = '';
-    const cb = _createCombobox(SPECIES_POOL, '', 'Search Pokémon…', 'starter-const-value');
-    // Make the combobox fill the container width
-    cb.style.width = '100%';
-    container.appendChild(cb);
-  });
+  const container = document.getElementById('customCb0');
+  if (!container) return;
+  container.innerHTML = '';
+  const cb = _createCombobox(SPECIES_POOL, '', 'Search Pokémon…', 'starter-const-value');
+  cb.style.width = '100%';
+  container.appendChild(cb);
 }
 _initStarterComboboxes();
 
 function _getStarterConst(i) {
-  const container = document.getElementById('customCb'+i);
+  const container = document.getElementById('customCb' + i);
   return container ? (container.querySelector('.starter-const-value')?.value || '') : '';
 }
 
 function _setStarterConst(i, constVal) {
-  const container = document.getElementById('customCb'+i);
+  const container = document.getElementById('customCb' + i);
   if (!container) return;
   container.innerHTML = '';
   const cb = _createCombobox(SPECIES_POOL, constVal || '', 'Search Pokémon…', 'starter-const-value');
@@ -2496,17 +2078,12 @@ function _gatherItemRows(listId) {
       const: row.querySelector('.item-const-value').value,
       qty:   parseInt(row.querySelector('input[type=number]').value) || 1,
     }))
-    .filter(r => r.const);  // skip rows where no item has been selected yet
+    .filter(r => r.const);
 }
 
 // ---------------------------------------------------------------------------
-// PC Pokémon
+// PC Pokémon (Yellow: single box only — no box selector)
 // ---------------------------------------------------------------------------
-function onPCPokemonChange() {
-  const enabled = document.getElementById('pcPokemonEnable').checked;
-  document.getElementById('pcPokemonBody').style.display = enabled ? 'block' : 'none';
-}
-
 function _makePCNumInput(cls, min, max, val) {
   const el = document.createElement('input');
   el.type = 'number'; el.min = min; el.max = max;
@@ -2525,10 +2102,16 @@ function _makePCNumInput(cls, min, max, val) {
 
 function addPCMon(data) {
   data = data || {};
+  const list = document.getElementById('pcMonList');
+  if (list.querySelectorAll('.pc-mon-card').length >= 20) {
+    alert('Maximum 20 Pokémon in Yellow\'s single PC box.');
+    return;
+  }
+
   const card = document.createElement('div');
   card.className = 'pc-mon-card';
 
-  // ── Row 1: Species | Box | Level | Remove ──
+  // ── Row 1: Species | Level | Remove ──
   const row1 = document.createElement('div');
   row1.className = 'pc-mon-row';
 
@@ -2537,19 +2120,6 @@ function addPCMon(data) {
   const spLbl = document.createElement('label'); spLbl.textContent = 'Species';
   const spCB  = _createCombobox(SPECIES_POOL, data.species || '', 'Search Pokémon…', 'species-const-value');
   spField.appendChild(spLbl); spField.appendChild(spCB);
-
-  const boxField = document.createElement('div');
-  boxField.className = 'pc-mon-field';
-  const boxLbl = document.createElement('label'); boxLbl.textContent = 'Box';
-  const boxSel = document.createElement('select');
-  boxSel.className = 'pc-mon-select';
-  for (let i = 1; i <= 14; i++) {
-    const opt = document.createElement('option');
-    opt.value = i; opt.textContent = i;
-    if (i === (parseInt(data.box) || 1)) opt.selected = true;
-    boxSel.appendChild(opt);
-  }
-  boxField.appendChild(boxLbl); boxField.appendChild(boxSel);
 
   const lvlField = document.createElement('div');
   lvlField.className = 'pc-mon-field';
@@ -2561,10 +2131,14 @@ function addPCMon(data) {
   dupBtn.className = 'btn-dup'; dupBtn.textContent = '⧉';
   dupBtn.title = 'Duplicate this Pokémon'; dupBtn.style.marginBottom = '1px';
   dupBtn.onclick = () => {
-    const data = _gatherOnePCMon(card);
-    if (!data) { alert('Pick a species first.'); return; }
-    const n = _askCopies();
-    for (let i = 0; i < n; i++) addPCMon(data);
+    const d = _gatherOnePCMon(card);
+    if (!d) { alert('Pick a species first.'); return; }
+    let n = _askCopies();
+    if (!n) return;
+    const avail = 20 - list.querySelectorAll('.pc-mon-card').length;
+    if (avail <= 0) { alert('Maximum 20 Pokémon in Yellow\'s single PC box.'); return; }
+    n = Math.min(n, avail);
+    for (let i = 0; i < n; i++) addPCMon(d);
   };
 
   const removeBtn = document.createElement('button');
@@ -2572,31 +2146,10 @@ function addPCMon(data) {
   removeBtn.title = 'Remove'; removeBtn.style.marginBottom = '1px';
   removeBtn.onclick = () => card.remove();
 
-  row1.appendChild(spField); row1.appendChild(boxField);
-  row1.appendChild(lvlField); row1.appendChild(dupBtn); row1.appendChild(removeBtn);
-
-  // ── Row 2: Nickname | Held Item ──
-  const row2 = document.createElement('div');
-  row2.className = 'pc-mon-row';
-
-  const nickField = document.createElement('div');
-  nickField.className = 'pc-mon-field';
-  const nickLbl = document.createElement('label');
-  nickLbl.textContent = 'Nickname (optional, 10 chars max)';
-  const nickIn = document.createElement('input');
-  nickIn.type = 'text'; nickIn.maxLength = 10;
-  nickIn.className = 'pc-mon-nick'; nickIn.placeholder = 'Default name';
-  nickIn.value = data.nickname || '';
-  nickField.appendChild(nickLbl); nickField.appendChild(nickIn);
-
-  const itemField = document.createElement('div');
-  itemField.className = 'pc-mon-field'; itemField.style.flex = '1';
-  const itemLbl = document.createElement('label');
-  itemLbl.textContent = 'Held Item (optional)';
-  const itemCB = _createCombobox(ITEM_POOL_WITH_NONE, data.heldItem || undefined, 'Search items…', 'held-item-value');
-  itemField.appendChild(itemLbl); itemField.appendChild(itemCB);
-
-  row2.appendChild(nickField); row2.appendChild(itemField);
+  row1.appendChild(spField);
+  row1.appendChild(lvlField);
+  row1.appendChild(dupBtn);
+  row1.appendChild(removeBtn);
 
   // ── Row 3: Moves ──
   const row3 = document.createElement('div');
@@ -2655,9 +2208,9 @@ function addPCMon(data) {
   row4.appendChild(dvWrap);
   row4.appendChild(dvRandBtn);
 
-  card.appendChild(row1); card.appendChild(row2);
+  card.appendChild(row1);
   card.appendChild(row3); card.appendChild(row4);
-  document.getElementById('pcMonList').appendChild(card);
+  list.appendChild(card);
 }
 
 function _gatherOnePCMon(card) {
@@ -2668,10 +2221,8 @@ function _gatherOnePCMon(card) {
   const dvInputs = Array.from(card.querySelectorAll('.pc-mon-dv-input'));
   return {
     species,
-    box:      parseInt(card.querySelector('.pc-mon-select').value) || 1,
+    box:      1,   // Yellow has a single box; always box 1
     level:    parseInt(card.querySelector('.pc-mon-number').value) || 5,
-    nickname: card.querySelector('.pc-mon-nick').value.trim(),
-    heldItem: card.querySelector('.held-item-value').value || '',
     moves,
     dvAtk: parseInt(dvInputs[0]?.value) || 0,
     dvDef: parseInt(dvInputs[1]?.value) || 0,
@@ -2689,31 +2240,21 @@ function _gatherPCMons() {
 // Save / Load Settings
 // ---------------------------------------------------------------------------
 function gatherSettings() {
-  const genFilter = document.getElementById('gen1Only').checked ? 'gen1'
-                  : document.getElementById('gen2Only').checked ? 'gen2'
-                  : 'all';
   return {
     buildRom:             document.getElementById('buildRom').checked,
     // General
-    genFilter,
     easierEvolutions:     document.getElementById('easierEvolutions').checked,
-    removeTimeEvolutions: document.getElementById('removeTimeEvolutions').checked,
     fullHMCompat:         document.getElementById('fullHMCompat').checked,
     // Starters
     starterMode:          document.querySelector('input[name="starterMode"]:checked').value,
-    customStarters:       [0,1,2].map(i => _getStarterConst(i)),
-    starterRandItems:     document.getElementById('starterRandItems').checked,
-    starterBanBadItems:   document.getElementById('starterBanBadItems').checked,
+    customStarter:        _getStarterConst(0),
+    customStarters:       [_getStarterConst(0)],
     // Wild
     wildMode:             document.querySelector('input[name="wildMode"]:checked').value,
     wildRule:             document.querySelector('input[name="wildRule"]:checked').value,
-    wildTimeBased:        document.getElementById('wildTimeBased').checked,
     wildNoLegendaries:    document.getElementById('wildNoLegendaries').checked,
-    wildRandHeldItems:    document.getElementById('wildRandHeldItems').checked,
-    wildBanBadHeldItems:  document.getElementById('wildBanBadHeldItems').checked,
     // Trainers
     trainerMode:          document.querySelector('input[name="trainerMode"]:checked').value,
-    trainerRivalStarter:  document.getElementById('trainerRivalStarter').checked,
     trainerSimilarStrength: document.getElementById('trainerSimilarStrength').checked,
     trainerNoLegend:      document.getElementById('trainerNoLegend').checked,
     trainerWeightTypes:   document.getElementById('trainerWeightTypes').checked,
@@ -2724,20 +2265,16 @@ function gatherSettings() {
     // Trades
     tradeMode:            document.querySelector('input[name="tradeMode"]:checked').value,
     tradeRandNicknames:   document.getElementById('tradeRandNicknames').checked,
-    tradeRandOT:          document.getElementById('tradeRandOT').checked,
-    tradeRandIVs:         document.getElementById('tradeRandIVs').checked,
-    tradeRandItems:       document.getElementById('tradeRandItems').checked,
     // Items
     fieldItemsMode:       document.querySelector('input[name="fieldItemsMode"]:checked').value,
     fieldItemsBanBad:     document.getElementById('fieldItemsBanBad').checked,
     zeroGrinding:         document.getElementById('zeroGrinding').checked,
     elite4Prep:           document.getElementById('elite4Prep').checked,
-    // Starting items
-    startingItemsEnable:  document.getElementById('startingItemsEnable').checked,
+    // Gifts (Bag items + gift Pokémon)
+    startingItemsEnable:  true,
     startingBagItems:     _gatherItemRows('bagItemList'),
-    startingPCItems:      _gatherItemRows('pcItemList'),
-    // PC Pokémon
-    pcPokemonEnable:  document.getElementById('pcPokemonEnable').checked,
+    startingPCItems:      [],
+    pcPokemonEnable:  true,
     pcPokemon:        _gatherPCMons(),
   };
 }
@@ -2772,26 +2309,25 @@ function pickJsonFile(callback) {
 }
 
 function saveSettings() {
-  downloadJson(gatherSettings(), 'crystal_legacy_settings.json');
+  downloadJson(gatherSettings(), 'yellow_legacy_settings.json');
 }
 
 function loadSettings() {
-  pickJsonFile(s => applySettings(s, false));   // don't apply seed even if present
+  pickJsonFile(s => applySettings(s, false));
 }
 
 function saveSettingsAndSeed() {
   downloadJson(
     { seed: document.getElementById('seed').value, ...gatherSettings() },
-    'crystal_legacy_settings_seed.json'
+    'yellow_legacy_settings_seed.json'
   );
 }
 
 function loadSettingsAndSeed() {
-  pickJsonFile(s => applySettings(s, true));    // apply seed if present
+  pickJsonFile(s => applySettings(s, true));
 }
 
 function applySettings(s, applySeed) {
-  // Helpers
   const setCheck = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.checked = !!val;
@@ -2801,50 +2337,31 @@ function applySettings(s, applySeed) {
     if (el) el.checked = true;
   };
 
-  // Seed (only when explicitly requested)
   if (applySeed && s.seed !== undefined)
     document.getElementById('seed').value = s.seed;
 
-  // Build
   setCheck('buildRom', s.buildRom);
 
   // General
-  if (s.genFilter === 'gen1') {
-    document.getElementById('gen1Only').checked = true;
-  } else if (s.genFilter === 'gen2') {
-    document.getElementById('gen2Only').checked = true;
-  } else {
-    document.getElementById('genAll').checked = true;
-  }
-  setCheck('easierEvolutions',     s.easierEvolutions);
-  setCheck('removeTimeEvolutions', s.removeTimeEvolutions);
-  setCheck('fullHMCompat',         s.fullHMCompat);
+  setCheck('easierEvolutions', s.easierEvolutions);
+  setCheck('fullHMCompat',     s.fullHMCompat);
 
   // Starters
   if (s.starterMode) setRadio('starterMode', s.starterMode);
-  if (Array.isArray(s.customStarters)) {
-    [0,1,2].forEach(i => {
-      const v = s.customStarters[i];
-      if (v === undefined || v === null) return;
-      // Support both new format (const string) and old format (1-based integer)
-      const constVal = typeof v === 'number' ? (SPECIES_CONSTS[v - 1] || '') : String(v);
-      _setStarterConst(i, constVal);
-    });
+  {
+    let v = s.customStarter;
+    if (v === undefined && Array.isArray(s.customStarters)) v = s.customStarters[0];
+    const constVal = typeof v === 'number' ? (SPECIES_CONSTS[v - 1] || '') : String(v || '');
+    _setStarterConst(0, constVal);
   }
-  setCheck('starterRandItems',   s.starterRandItems);
-  setCheck('starterBanBadItems', s.starterBanBadItems);
 
   // Wild
   if (s.wildMode) setRadio('wildMode', s.wildMode);
   if (s.wildRule) setRadio('wildRule', s.wildRule);
-  setCheck('wildTimeBased',          s.wildTimeBased);
-  setCheck('wildNoLegendaries',      s.wildNoLegendaries);
-  setCheck('wildRandHeldItems',   s.wildRandHeldItems);
-  setCheck('wildBanBadHeldItems', s.wildBanBadHeldItems);
+  setCheck('wildNoLegendaries', s.wildNoLegendaries);
 
   // Trainers
   if (s.trainerMode) setRadio('trainerMode', s.trainerMode);
-  setCheck('trainerRivalStarter',    s.trainerRivalStarter);
   setCheck('trainerSimilarStrength', s.trainerSimilarStrength);
   setCheck('trainerNoLegend',        s.trainerNoLegend);
   setCheck('trainerWeightTypes',     s.trainerWeightTypes);
@@ -2861,9 +2378,6 @@ function applySettings(s, applySeed) {
   // Trades
   if (s.tradeMode) setRadio('tradeMode', s.tradeMode);
   setCheck('tradeRandNicknames', s.tradeRandNicknames);
-  setCheck('tradeRandOT',        s.tradeRandOT);
-  setCheck('tradeRandIVs',       s.tradeRandIVs);
-  setCheck('tradeRandItems',     s.tradeRandItems);
 
   // Items
   if (s.fieldItemsMode) setRadio('fieldItemsMode', s.fieldItemsMode);
@@ -2871,30 +2385,22 @@ function applySettings(s, applySeed) {
   setCheck('zeroGrinding', s.zeroGrinding);
   setCheck('elite4Prep', s.elite4Prep);
 
-  // Starting items
-  setCheck('startingItemsEnable', s.startingItemsEnable);
-  onStartingItemsChange();
-  if (s.startingItemsEnable) {
-    document.getElementById('bagItemList').innerHTML = '';
-    document.getElementById('pcItemList').innerHTML  = '';
-    ensureItemList().then(() => {
-      (s.startingBagItems || []).forEach(i => addItemRow('bag', i.const, i.qty));
-      (s.startingPCItems  || []).forEach(i => addItemRow('pc',  i.const, i.qty));
-    });
-  }
+  // Gifts — Bag items (back-compat: fold any saved PC items into the bag)
+  document.getElementById('bagItemList').innerHTML = '';
+  ensureItemList().then(() => {
+    (s.startingBagItems || []).forEach(i => addItemRow('bag', i.const, i.qty));
+    (s.startingPCItems  || []).forEach(i => addItemRow('bag', i.const, i.qty));
+  });
 
-  // PC Pokémon
-  setCheck('pcPokemonEnable', s.pcPokemonEnable);
-  onPCPokemonChange();
-  if (s.pcPokemonEnable && Array.isArray(s.pcPokemon)) {
-    document.getElementById('pcMonList').innerHTML = '';
+  // Gifts — Pokémon
+  document.getElementById('pcMonList').innerHTML = '';
+  if (Array.isArray(s.pcPokemon)) {
     s.pcPokemon.forEach(m => addPCMon(m));
   }
 
-  // Fire all onChange / sync handlers to update dependent UI state
+  // Fire onChange handlers to sync dependent UI
   onStarterModeChange();
   onWildModeChange();
-  syncWildBanBadHeld();
   onTrainerModeChange();
   syncTrainerForceEvolved();
   onTradeModeChange();
@@ -2905,7 +2411,7 @@ function applySettings(s, applySeed) {
 
 // ── Quick UX: remember last folders + copy-seed button ──────────────────────
 (function(){
-  const GAME = 'crystal';
+  const GAME = 'yellow';
   function ready(fn){ document.readyState!=='loading' ? fn() : document.addEventListener('DOMContentLoaded', fn); }
   ready(function(){
     ['srcDir','outDir'].forEach(function(id){

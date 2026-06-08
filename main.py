@@ -1,5 +1,5 @@
 """
-Pokemon Crystal Legacy Randomizer v1.0 — Web UI entry point
+Pokemon Legacy Randomizer v1.0 — Web UI entry point
 
 Starts a local HTTP server, opens the UI in the default browser,
 and shuts down cleanly when the browser tab closes or the user clicks Quit.
@@ -18,6 +18,347 @@ import webbrowser
 from urllib.parse import urlparse, parse_qs
 
 # ---------------------------------------------------------------------------
+# Toolchain manager — auto-download RGBDS and devkitARM on first use
+# ---------------------------------------------------------------------------
+
+# Cache sits next to main.py so it survives between app launches
+_TOOLCHAIN_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                ".toolchain_cache")
+
+# Pinned RGBDS versions (game-specific requirements)
+_RGBDS_CRYSTAL = "0.5.2"   # Crystal Legacy requires exactly 0.5.2
+_RGBDS_YELLOW  = "0.7.0"   # Yellow Legacy: 0.6.0+ required; 0.8.0+ breaks EQU syntax → pin 0.7.0
+
+
+def _ensure_rgbds(version: str, log_fn) -> str:
+    """
+    Guarantee a specific RGBDS version is available, downloading it from
+    GitHub Releases if not already cached.  Returns the directory that
+    contains rgbasm / rgblink / rgbfix / rgbgfx.
+    """
+    import platform, stat, tarfile, tempfile, urllib.request, json as _json
+
+    bin_dir  = os.path.join(_TOOLCHAIN_CACHE, f"rgbds-{version}")
+    rgbasm   = os.path.join(bin_dir, "rgbasm")
+
+    # Already cached and executable → done
+    if os.path.isfile(rgbasm) and os.access(rgbasm, os.X_OK):
+        log_fn(f"  RGBDS v{version} (cached)")
+        return bin_dir
+
+    log_fn(f"  RGBDS v{version} not found locally — fetching from GitHub…")
+
+    # Ask the GitHub API which assets this release has
+    api_url = f"https://api.github.com/repos/gbdev/rgbds/releases/tags/v{version}"
+    req = urllib.request.Request(
+        api_url,
+        headers={"User-Agent": "Pokemon-Legacy-Randomizer/1.0",
+                 "Accept": "application/vnd.github+json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            release = _json.loads(resp.read())
+    except Exception as exc:
+        raise RuntimeError(
+            f"Could not reach GitHub to download RGBDS v{version}: {exc}\n"
+            "Check your internet connection."
+        )
+
+    machine = platform.machine().lower()   # "arm64" on Apple Silicon, "x86_64" on Intel
+    assets  = release.get("assets", [])
+
+    def _score(name: str) -> int:
+        """
+        Score a release asset name.  Must be a macOS binary (not source tarball,
+        not Windows/Linux).  RGBDS ships macOS binaries as .zip; source as .tar.gz
+        with no platform in the name — so we require 'macos' or 'darwin'.
+
+        Naming has changed across versions:
+          v0.5.2–0.8.x : rgbds-X.Y.Z-macos-x86-64.zip  (or x86_64)
+          v0.9.x       : rgbds-X.Y.Z-macos.zip          (universal)
+          v1.0.x+      : rgbds-macos.zip                 (universal)
+        """
+        nl = name.lower()
+        # Must be a zip (macOS binaries) — tar.gz is always source
+        if not nl.endswith(".zip"):
+            return -1
+        # Skip non-Mac platforms
+        if any(p in nl for p in ("windows", "linux", "win32", "win64")):
+            return -1
+        # Require an explicit platform marker — excludes any stray non-platform zips
+        if "darwin" not in nl and "macos" not in nl:
+            return -1
+        score = 10  # confirmed macOS binary
+        # Prefer exact arch match; newer universal builds also score well
+        if machine.replace("_", "-") in nl or machine in nl:
+            score += 5
+        elif "universal" in nl or (nl.endswith("-macos.zip") or nl == "rgbds-macos.zip"):
+            score += 4   # universal / no-arch = runs natively on all Macs
+        return score
+
+    best = max(assets, key=lambda a: _score(a["name"]), default=None)
+    if not best or _score(best["name"]) < 0:
+        raise RuntimeError(
+            f"No macOS binary found for RGBDS v{version} on GitHub.\n"
+            f"Check: https://github.com/gbdev/rgbds/releases/tag/v{version}"
+        )
+
+    asset_name = best["name"]
+    log_fn(f"  Downloading {asset_name} …")
+    os.makedirs(bin_dir, exist_ok=True)
+
+    # Use correct suffix so extraction logic works
+    suffix = ".zip" if asset_name.lower().endswith(".zip") else ".tar.gz"
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=suffix)
+    os.close(tmp_fd)
+
+    try:
+        urllib.request.urlretrieve(best["browser_download_url"], tmp_path)
+
+        executables = {"rgbasm", "rgblink", "rgbfix", "rgbgfx"}
+
+        if suffix == ".zip":
+            import zipfile
+            with zipfile.ZipFile(tmp_path) as zf:
+                for info in zf.infolist():
+                    base = os.path.basename(info.filename)
+                    if base in executables and not info.is_dir():
+                        info.filename = base   # flatten into bin_dir
+                        zf.extract(info, bin_dir)
+                        dest = os.path.join(bin_dir, base)
+                        os.chmod(dest, os.stat(dest).st_mode
+                                 | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        else:
+            with tarfile.open(tmp_path) as tar:
+                for member in tar.getmembers():
+                    if os.path.basename(member.name) in executables and member.isfile():
+                        member.name = os.path.basename(member.name)
+                        tar.extract(member, bin_dir)
+                        dest = os.path.join(bin_dir, member.name)
+                        os.chmod(dest, os.stat(dest).st_mode
+                                 | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    except Exception:
+        # Don't leave a partial cache directory behind
+        import shutil as _shutil
+        _shutil.rmtree(bin_dir, ignore_errors=True)
+        raise
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    if not os.path.isfile(rgbasm):
+        import shutil as _shutil
+        _shutil.rmtree(bin_dir, ignore_errors=True)
+        raise RuntimeError(
+            f"Downloaded {asset_name} but could not find rgbasm inside it.\n"
+            "Please report this issue with the asset name above."
+        )
+
+    log_fn(f"  RGBDS v{version} ready")
+    return bin_dir
+
+
+def _ensure_gba_toolchain(log_fn) -> dict:
+    """
+    Guarantee the full GBA build toolchain is ready:
+      1. devkitARM (arm-none-eabi cross-compiler + binutils with embedded newlib)
+      2. Homebrew libpng + pkg-config (needed to compile host gbagfx tool)
+      3. agbcc (the GBA C compiler used by pokeemerald MODERN=0 builds)
+         → built once from pret/agbcc, cached in _TOOLCHAIN_CACHE/agbcc_install/
+
+    Returns a dict with:
+      "DEVKITPRO", "DEVKITARM" — env vars for the Makefile
+      "PATH"                   — prepend to PATH (devkitARM bins + tools)
+      "PKG_CONFIG_PATH"        — needed so host gbagfx can find libpng headers
+      "agbcc_install_dir"      — directory whose contents mirror tools/agbcc/
+                                 (caller must copy into the output tree before make)
+    """
+    import shutil as _shutil, urllib.request, tempfile, stat
+
+    # ── 1. devkitARM ─────────────────────────────────────────────────────────
+    devkitpro = "/opt/devkitpro"
+    arm_gcc   = os.path.join(devkitpro, "devkitARM", "bin", "arm-none-eabi-gcc")
+
+    if os.path.isfile(arm_gcc):
+        log_fn("  devkitARM found")
+    else:
+        log_fn("  devkitARM not found — installing via devkitPro (one-time setup)…")
+        log_fn("  → A macOS password prompt will appear. This installs the GBA toolchain.")
+        log_fn("  → Download ~145 MB, may take several minutes. Please wait.")
+
+        # Fetch the real asset name from the GitHub releases API
+        import json as _json
+        api_url = "https://api.github.com/repos/devkitPro/pacman/releases/latest"
+        req = urllib.request.Request(
+            api_url,
+            headers={"User-Agent": "Pokemon-Legacy-Randomizer/1.0",
+                     "Accept": "application/vnd.github+json"},
+        )
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            release = _json.loads(resp.read())
+        pkg_asset = next(
+            (a for a in release.get("assets", [])
+             if a["name"].endswith(".pkg")),
+            None,
+        )
+        if not pkg_asset:
+            raise RuntimeError(
+                "Could not find devkitPro macOS installer on GitHub.\n"
+                "Check: https://github.com/devkitPro/pacman/releases"
+            )
+
+        tmp_pkg = os.path.join(tempfile.gettempdir(), pkg_asset["name"])
+        log_fn(f"  Downloading {pkg_asset['name']} ({pkg_asset['size']//1_000_000} MB)…")
+        urllib.request.urlretrieve(pkg_asset["browser_download_url"], tmp_pkg)
+
+        # Run installer + gba-dev via osascript (triggers native password dialog)
+        shell_cmd = (
+            f"installer -pkg '{tmp_pkg}' -target / && "
+            "/usr/local/bin/dkp-pacman -Syu --noconfirm && "
+            "/usr/local/bin/dkp-pacman -S --noconfirm gba-dev"
+        )
+        osa = f'do shell script "{shell_cmd}" with administrator privileges'
+        log_fn("  Waiting for password dialog…")
+        result = subprocess.run(
+            ["osascript", "-e", osa],
+            capture_output=True, text=True, timeout=900,
+        )
+        if result.returncode != 0:
+            err = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(
+                "devkitARM installation failed or was cancelled.\n"
+                + (f"Detail: {err}" if err else "")
+            )
+        log_fn("  devkitARM installed successfully!")
+        if not os.path.isfile(arm_gcc):
+            raise RuntimeError(
+                "devkitARM install appeared to succeed but arm-none-eabi-gcc "
+                "was not found. Please restart the app."
+            )
+
+    # ── 2. Homebrew libpng + pkg-config ──────────────────────────────────────
+    brew = _shutil.which("brew") or "/opt/homebrew/bin/brew"
+    if os.path.isfile(brew):
+        for pkg in ("libpng", "pkg-config"):
+            try:
+                result = subprocess.run(
+                    [brew, "list", pkg],
+                    capture_output=True, text=True
+                )
+                if result.returncode != 0:
+                    log_fn(f"  Installing Homebrew {pkg}…")
+                    subprocess.run(
+                        [brew, "install", pkg],
+                        capture_output=True, text=True, timeout=300,
+                    )
+            except Exception:
+                pass  # best-effort
+
+    # Build PKG_CONFIG_PATH: Homebrew libpng + a tiny zlib.pc shim
+    hb_pkgconfig = "/opt/homebrew/lib/pkgconfig"
+    zlib_shim_dir = os.path.join(_TOOLCHAIN_CACHE, "pkgconfig_shims")
+    os.makedirs(zlib_shim_dir, exist_ok=True)
+    zlib_pc = os.path.join(zlib_shim_dir, "zlib.pc")
+    if not os.path.isfile(zlib_pc):
+        with open(zlib_pc, "w") as f:
+            f.write("Name: zlib\nDescription: zlib\nVersion: 1.2\nCflags:\nLibs: -lz\n")
+    pkg_config_path = hb_pkgconfig + os.pathsep + zlib_shim_dir
+
+    # ── 3. agbcc (build once, cache) ─────────────────────────────────────────
+    agbcc_cache = os.path.join(_TOOLCHAIN_CACHE, "agbcc_install")
+    agbcc_bin   = os.path.join(agbcc_cache, "bin", "agbcc")
+
+    if os.path.isfile(agbcc_bin) and os.access(agbcc_bin, os.X_OK):
+        log_fn("  agbcc (cached)")
+    else:
+        log_fn("  agbcc not found in cache — building from pret/agbcc…")
+        os.makedirs(agbcc_cache, exist_ok=True)
+
+        with tempfile.TemporaryDirectory() as build_tmp:
+            # Clone agbcc
+            log_fn("  Cloning pret/agbcc…")
+            result = subprocess.run(
+                ["git", "clone", "--depth=1",
+                 "https://github.com/pret/agbcc", build_tmp],
+                capture_output=True, text=True, timeout=120,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"Failed to clone pret/agbcc: {result.stderr.strip()}\n"
+                    "Check your internet connection."
+                )
+
+            # Build agbcc using devkitARM's arm-none-eabi tools
+            dka_bin = os.path.join(devkitpro, "devkitARM", "bin")
+            dka_tools = os.path.join(devkitpro, "tools", "bin")
+            build_env = os.environ.copy()
+            build_env["DEVKITPRO"] = devkitpro
+            build_env["DEVKITARM"] = os.path.join(devkitpro, "devkitARM")
+            build_env["PATH"] = dka_bin + os.pathsep + dka_tools + os.pathsep + build_env.get("PATH", "")
+
+            log_fn("  Building agbcc (this takes ~30 seconds)…")
+            result = subprocess.run(
+                ["./build.sh"],
+                cwd=build_tmp,
+                capture_output=True, text=True, timeout=300,
+                env=build_env,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"agbcc build.sh failed:\n{result.stderr[-1000:]}"
+                )
+
+            # Install into cache: mirror what install.sh does
+            import shutil as _sh
+            for d in ("bin", "include", "lib"):
+                os.makedirs(os.path.join(agbcc_cache, d), exist_ok=True)
+            for exe in ("agbcc", "old_agbcc", "agbcc_arm"):
+                src = os.path.join(build_tmp, exe)
+                dst = os.path.join(agbcc_cache, "bin", exe)
+                _sh.copy2(src, dst)
+                os.chmod(dst, os.stat(dst).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            # libc/include → include/
+            libc_inc = os.path.join(build_tmp, "libc", "include")
+            if os.path.isdir(libc_inc):
+                for item in os.listdir(libc_inc):
+                    s = os.path.join(libc_inc, item)
+                    d = os.path.join(agbcc_cache, "include", item)
+                    if os.path.isdir(s):
+                        _sh.copytree(s, d, dirs_exist_ok=True)
+                    else:
+                        _sh.copy2(s, d)
+            # ginclude → include/
+            ginclude = os.path.join(build_tmp, "ginclude")
+            if os.path.isdir(ginclude):
+                for item in os.listdir(ginclude):
+                    _sh.copy2(os.path.join(ginclude, item),
+                               os.path.join(agbcc_cache, "include", item))
+            # libs
+            for lib in ("libgcc.a", "libc.a"):
+                src = os.path.join(build_tmp, lib)
+                if os.path.isfile(src):
+                    _sh.copy2(src, os.path.join(agbcc_cache, "lib", lib))
+
+        log_fn("  agbcc built and cached successfully!")
+
+    dka_bin   = os.path.join(devkitpro, "devkitARM", "bin")
+    dka_tools = os.path.join(devkitpro, "tools", "bin")
+    return {
+        "DEVKITPRO":       devkitpro,
+        "DEVKITARM":       os.path.join(devkitpro, "devkitARM"),
+        "PATH":            dka_bin + os.pathsep + dka_tools,
+        "PKG_CONFIG_PATH": pkg_config_path,
+        "agbcc_install_dir": agbcc_cache,
+    }
+
+
+# keep old name as alias so nothing else breaks
+_ensure_devkitarm = _ensure_gba_toolchain
+
+
+# ---------------------------------------------------------------------------
 # Shared state (accessed from multiple threads)
 # ---------------------------------------------------------------------------
 _state_lock  = threading.Lock()
@@ -31,6 +372,74 @@ _shutdown_ev = threading.Event()
 def _append_log(msg: str):
     with _state_lock:
         _log_lines.append(msg)
+
+
+def _save_rom_with_dialog(rom_path: str, default_name: str, ext: str, log) -> str:
+    """
+    Prompt the user (via a macOS save dialog) for where to copy the built ROM.
+
+    Robust against the common failure modes:
+      • The dialog is forced to the foreground so it can't hide behind windows.
+      • A generous timeout is used; on timeout / cancel / any error the freshly
+        built ROM is auto-saved to ~/Downloads (never lost) and that path is
+        returned instead of crashing the whole job.
+
+    Returns the final path the ROM lives at.
+    """
+    log("\nChoose where to save the ROM…  (a Save dialog should appear — "
+        "check behind other windows if you don't see it)")
+
+    # `tell application "System Events" to activate` forces the dialog frontmost,
+    # even when the server is running as a background process.
+    script = (
+        'tell application "System Events" to activate\n'
+        'POSIX path of (choose file name with prompt "Save your randomized ROM:" '
+        f'default name "{default_name}")'
+    )
+
+    def _fallback(reason: str) -> str:
+        downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+        dest_dir  = downloads if os.path.isdir(downloads) else os.path.dirname(rom_path)
+        dest = os.path.join(dest_dir, default_name)
+        # Avoid clobbering an existing file
+        n = 1
+        while os.path.isfile(dest):
+            stem = default_name[:-len(ext)] if default_name.lower().endswith(ext) else default_name
+            dest = os.path.join(dest_dir, f"{stem}_{n}{ext}")
+            n += 1
+        try:
+            import shutil as _sh
+            _sh.copy2(rom_path, dest)
+            log(f"  {reason} — ROM auto-saved to:\n  {dest}")
+            return dest
+        except Exception as exc:
+            log(f"  {reason} — could not auto-save ({exc}); ROM remains at:\n  {rom_path}")
+            return rom_path
+
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True, text=True, timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        return _fallback("Save dialog timed out")
+    except Exception as exc:
+        return _fallback(f"Save dialog failed ({exc})")
+
+    save_dest = result.stdout.strip()
+    if not save_dest:
+        # User pressed Cancel (osascript exits non-zero with empty stdout)
+        return _fallback("Save dialog cancelled")
+
+    if not save_dest.lower().endswith(ext):
+        save_dest += ext
+    try:
+        import shutil as _sh
+        _sh.copy2(rom_path, save_dest)
+        log(f"ROM saved to: {save_dest}")
+        return save_dest
+    except Exception as exc:
+        return _fallback(f"Could not write to chosen location ({exc})")
 
 
 # ---------------------------------------------------------------------------
@@ -72,8 +481,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/quit":
             self._send_json({"ok": True})
             threading.Thread(target=_shutdown_ev.set, daemon=True).start()
+        elif self._serve_static(path):
+            pass
         else:
             self.send_error(404)
+
+    # Serve static assets (images, css, etc.) from the static/ folder.
+    # Returns True if it handled the request.
+    _STATIC_TYPES = {
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".gif": "image/gif", ".svg": "image/svg+xml", ".webp": "image/webp",
+        ".ico": "image/x-icon", ".css": "text/css", ".js": "text/javascript",
+    }
+
+    def _serve_static(self, path: str) -> bool:
+        ext = os.path.splitext(path)[1].lower()
+        ctype = self._STATIC_TYPES.get(ext)
+        if not ctype:
+            return False
+        # Resolve safely inside STATIC_DIR (block path traversal)
+        rel = path.lstrip("/")
+        full = os.path.realpath(os.path.join(STATIC_DIR, rel))
+        if not full.startswith(os.path.realpath(STATIC_DIR) + os.sep):
+            return False
+        if not os.path.isfile(full):
+            return False
+        self._serve_file(full, ctype)
+        return True
 
     def do_POST(self):
         path = urlparse(self.path).path
@@ -101,9 +535,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # ---- API handlers ----
 
     def _api_items(self):
-        """Return the full list of items available for starting-item configuration."""
-        from item_data import STARTING_ITEM_POOL_ALL
-        self._send_json({"items": [{"const": c, "name": n} for c, n in STARTING_ITEM_POOL_ALL]})
+        """Return the item pool for starting-item selectors (game-aware)."""
+        game = (parse_qs(urlparse(self.path).query).get("game", [""])[0]).lower()
+        if game == "emerald":
+            from item_data import EMERALD_ALL_ITEM_POOL as POOL
+        elif game == "yellow":
+            try:
+                from item_data import YELLOW_STARTING_ITEM_POOL as POOL
+            except ImportError:
+                from item_data import STARTING_ITEM_POOL_ALL as POOL
+        else:
+            from item_data import STARTING_ITEM_POOL_ALL as POOL
+        self._send_json({"items": [{"const": c, "name": n} for c, n in POOL]})
 
     def _api_browse(self):
         """Open a native macOS folder picker via osascript."""
@@ -272,7 +715,18 @@ def _run_randomizer(data: dict):
         s = RandomizerSettings(seed=seed)
         s.starter_mode            = data.get("starterMode", "random")   # 'unchanged'|'custom'|'random'|'random_two_stage'
         if s.starter_mode == "custom" and len(data.get("customStarters", [])) == 3:
-            s.custom_starters = [int(x) for x in data["customStarters"]]
+            # Accept either numeric dex IDs (sent by the Randomize button) or
+            # species constant names (the format stored in saved settings).
+            from constants import POKEMON_CONSTANTS as _PC
+            def _to_id(x):
+                if isinstance(x, int):
+                    return x
+                if isinstance(x, str) and x.isdigit():
+                    return int(x)
+                if isinstance(x, str) and x:
+                    return _PC.get(x, 0)
+                return 0
+            s.custom_starters = [_to_id(x) for x in data["customStarters"]]
         s.starter_random_items    = data.get("starterRandItems", False)
         s.starter_ban_bad_items   = data.get("starterBanBadItems", True)
         s.easier_evolutions       = data.get("easierEvolutions", False)
@@ -495,6 +949,32 @@ def _run_randomizer(data: dict):
 
         writer.flush_all()
 
+        # ---- Spoiler log ----
+        try:
+            import spoiler_log
+            from constants import POKEMON_DISPLAY_NAME
+            sp = spoiler_log.Spoiler("Pokemon Crystal Legacy", seed, POKEMON_DISPLAY_NAME)
+            spoiler_log.build_crystal(sp, parser, {
+                "starters": rand_starters, "wild": rand_wild, "trainers": rand_trainers,
+                "static": rand_static, "field_items": rand_field_items,
+                "trades": rand_trades, "held": rand_wild_held_items,
+            })
+            sp.write(out, log)
+        except Exception as _sp_e:
+            log(f"[WARN] Spoiler log skipped: {_sp_e}")
+
+        # ── Auto-save the exact settings used (reproducibility) ──
+        try:
+            import json as _json
+            _used = {"seed": seed}
+            _used.update({k: v for k, v in data.items()
+                          if k not in ("sourceDir", "outputDir", "seed")})
+            with open(os.path.join(out, "settings_used.json"), "w", encoding="utf-8") as _sf:
+                _json.dump(_used, _sf, indent=2)
+            log(f"Settings saved: {os.path.join(out, 'settings_used.json')}")
+        except Exception as _se:
+            log(f"[WARN] Could not save settings_used.json: {_se}")
+
         # ---- Optional ROM build ----
         build_rom = data.get("buildRom", True)
         rom_path = None
@@ -504,18 +984,11 @@ def _run_randomizer(data: dict):
             log("Building ROM with 'make'...")
             log("=" * 56)
 
-            # Expand PATH to include common locations where RGBDS / make live
             import shutil as _shutil
             env = os.environ.copy()
-            extra_paths = [
-                "/usr/local/bin",          # Homebrew (Intel Mac)
-                "/opt/homebrew/bin",       # Homebrew (Apple Silicon)
-                "/usr/bin",
-                "/bin",
-            ]
-            env["PATH"] = ":".join(extra_paths + env.get("PATH", "").split(":"))
+            base_paths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]
+            env["PATH"] = os.pathsep.join(base_paths + env.get("PATH", "").split(os.pathsep))
 
-            # Verify make is reachable with the expanded PATH
             make_exe = _shutil.which("make", path=env["PATH"])
             if not make_exe:
                 raise RuntimeError(
@@ -523,29 +996,10 @@ def _run_randomizer(data: dict):
                     "Install Xcode Command Line Tools:  xcode-select --install"
                 )
 
-            # Verify RGBDS is present and is a compatible version (0.5.x–0.9.x)
-            rgbasm_exe = _shutil.which("rgbasm", path=env["PATH"])
-            if not rgbasm_exe:
-                raise RuntimeError(
-                    "Could not find 'rgbasm'. "
-                    "Install RGBDS 0.5.2: https://github.com/gbdev/rgbds/releases/tag/v0.5.2"
-                )
-            ver_result = subprocess.run(
-                [rgbasm_exe, "--version"], capture_output=True, text=True
-            )
-            ver_line = (ver_result.stdout + ver_result.stderr).strip().splitlines()[0] \
-                       if (ver_result.stdout + ver_result.stderr).strip() else ""
-            log(f"  RGBDS: {ver_line}")
-            # Warn if major version is 1+ (breaking syntax changes vs Crystal Legacy)
-            import re as _re
-            ver_match = _re.search(r'(\d+)\.(\d+)\.(\d+)', ver_line)
-            if ver_match and int(ver_match.group(1)) >= 1:
-                raise RuntimeError(
-                    f"Incompatible RGBDS version detected: {ver_line}. "
-                    "Crystal Legacy requires RGBDS 0.5.2. "
-                    "Install it from: https://github.com/gbdev/rgbds/releases/tag/v0.5.2  "
-                    "Then run: sudo cp rgbasm rgblink rgbfix rgbgfx /usr/local/bin/"
-                )
+            # Auto-download RGBDS 0.5.2 if not already cached
+            log("Checking RGBDS toolchain…")
+            rgbds_bin = _ensure_rgbds(_RGBDS_CRYSTAL, log)
+            env["PATH"] = rgbds_bin + os.pathsep + env["PATH"]
 
             proc = subprocess.Popen(
                 [make_exe],
@@ -562,8 +1016,7 @@ def _run_randomizer(data: dict):
             if proc.returncode != 0:
                 raise RuntimeError(
                     f"'make' failed with exit code {proc.returncode}. "
-                    "Check the log above for compiler errors. "
-                    "Make sure RGBDS is installed: https://rgbds.gbdev.io/"
+                    "Check the log above for compiler errors."
                 )
 
             # Remind about new-game requirement if injection features were used
@@ -592,26 +1045,8 @@ def _run_randomizer(data: dict):
                     )
 
             # Ask the user where to save the ROM via a native macOS save dialog
-            log("\nChoose where to save the ROM…")
             default_name = f"CrystalLegacy_Randomized_{seed}.gbc"
-            save_result = subprocess.run(
-                ["osascript", "-e",
-                 f'POSIX path of (choose file name with prompt "Save your randomized ROM:"'
-                 f' default name "{default_name}")'],
-                capture_output=True, text=True, timeout=120,
-            )
-            save_dest = save_result.stdout.strip()
-
-            if save_dest:
-                # Ensure .gbc extension
-                if not save_dest.lower().endswith(".gbc"):
-                    save_dest += ".gbc"
-                import shutil as _shutil2
-                _shutil2.copy2(rom_path, save_dest)
-                rom_path = save_dest
-                log(f"ROM saved to: {rom_path}")
-            else:
-                log(f"Save dialog cancelled — ROM remains at:\n  {rom_path}")
+            rom_path = _save_rom_with_dialog(rom_path, default_name, ".gbc", log)
 
         log("\n" + "=" * 56)
         if build_rom and rom_path:
@@ -700,10 +1135,12 @@ def _run_randomizer_yellow(data: dict):
 
         # ── Build settings ─────────────────────────────────────────────────────
         s = YellowRandomizerSettings(seed=seed)
-        s.starter_mode             = data.get("starterMode", "random")
+        s.starter_mode             = data.get("starterMode", "unchanged")
         s.starter_no_legendaries   = data.get("starterNoLegendaries", True)
         if s.starter_mode == "custom":
             s.custom_starter = data.get("customStarter") or None
+        # (The 3 Bulba/Char/Squirtle gifts are now randomized as static
+        #  encounters via staticMode — no separate gift-mon setting.)
 
         s.wild_mode                = data.get("wildMode", "random")
         s.wild_rule                = data.get("wildRule", "none")
@@ -726,15 +1163,18 @@ def _run_randomizer_yellow(data: dict):
         s.field_items_mode         = data.get("fieldItemsMode", "unchanged")
         s.field_items_ban_bad      = data.get("fieldItemsBanBad", True)
 
-        start_items_enable         = data.get("startItemsEnable", False)
+        start_items_enable         = data.get("startingItemsEnable", False)
         s.randomize_start_items    = start_items_enable
-        s.start_items              = data.get("startBagItems", []) if start_items_enable else []
-        s.start_pc_items           = data.get("startPCItems",  []) if start_items_enable else []
+        s.start_items              = data.get("startingBagItems", []) if start_items_enable else []
+        s.start_pc_items           = data.get("startingPCItems",  []) if start_items_enable else []
 
         s.easier_evolutions        = data.get("easierEvolutions", False)
         s.full_hm_compat           = data.get("fullHMCompat", False)
         pc_pokemon_enable          = data.get("pcPokemonEnable", False)
         pc_pokemon                 = data.get("pcPokemon", []) if pc_pokemon_enable else []
+
+        s.zero_grinding            = data.get("zeroGrinding", False)
+        s.elite4_prep              = data.get("elite4Prep", False)
 
         engine = YellowRandomizerEngine(s, log_fn=log)
 
@@ -755,11 +1195,8 @@ def _run_randomizer_yellow(data: dict):
         new_starter_const = None
 
         if s.starter_mode != "unchanged":
-            if starters_found:
-                log("Starter:")
-                new_starter_const = engine.randomize_starter(parser.starters)
-            else:
-                log("[WARN] Starter not found in source — skipping.")
+            log("Oak starter (alongside Pikachu):")
+            new_starter_const = engine.randomize_starter()
 
         if s.wild_mode != "unchanged":
             log("Wild Pokémon:")
@@ -819,9 +1256,9 @@ def _run_randomizer_yellow(data: dict):
         writer = YellowSourceWriter(src, out, log_fn=log)
         writer.prepare_output_directory()
 
-        if s.starter_mode != "unchanged" and starters_found and new_starter_const:
-            log("Writing starter...")
-            writer.write_starter(parser.starters, new_starter_const)
+        if s.starter_mode != "unchanged" and new_starter_const:
+            log("Writing Oak starter...")
+            writer.write_oak_starter(new_starter_const, level=5)
 
         if s.wild_mode != "unchanged":
             log("Writing wild encounters...")
@@ -865,7 +1302,40 @@ def _run_randomizer_yellow(data: dict):
             log("PC Pokémon:")
             writer.write_pc_pokemon(pc_pokemon)
 
+        if s.zero_grinding:
+            log("Zero Grinding: adding Rare Candy to Viridian Mart...")
+            writer.write_zero_grinding()
+
+        if s.elite4_prep:
+            log("Elite 4 Prep: stocking Indigo Plateau Mart...")
+            writer.write_elite4_prep()
+
         writer.flush_all()
+
+        # ── Spoiler log ──
+        try:
+            import spoiler_log
+            from constants_yellow import POKEMON_DISPLAY_NAME as _YDN
+            sp = spoiler_log.Spoiler("Pokemon Yellow Legacy", seed, _YDN)
+            spoiler_log.build_yellow(sp, parser, {
+                "wild": rand_wild, "trainers": rand_trainers,
+                "static": rand_static, "field_items": rand_field_items, "trades": rand_trades,
+            })
+            sp.write(out, log)
+        except Exception as _sp_e:
+            log(f"[WARN] Spoiler log skipped: {_sp_e}")
+
+        # ── Auto-save the exact settings used (reproducibility) ──
+        try:
+            import json as _json
+            _used = {"seed": seed}
+            _used.update({k: v for k, v in data.items()
+                          if k not in ("sourceDir", "outputDir", "seed")})
+            with open(os.path.join(out, "settings_used.json"), "w", encoding="utf-8") as _sf:
+                _json.dump(_used, _sf, indent=2)
+            log(f"Settings saved: {os.path.join(out, 'settings_used.json')}")
+        except Exception as _se:
+            log(f"[WARN] Could not save settings_used.json: {_se}")
 
         # ── Optional ROM build ─────────────────────────────────────────────────
         build_rom = data.get("buildRom", True)
@@ -878,8 +1348,8 @@ def _run_randomizer_yellow(data: dict):
 
             import shutil as _shutil
             env = os.environ.copy()
-            extra_paths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]
-            env["PATH"] = ":".join(extra_paths + env.get("PATH", "").split(":"))
+            base_paths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]
+            env["PATH"] = os.pathsep.join(base_paths + env.get("PATH", "").split(os.pathsep))
 
             make_exe = _shutil.which("make", path=env["PATH"])
             if not make_exe:
@@ -888,18 +1358,10 @@ def _run_randomizer_yellow(data: dict):
                     "Install Xcode Command Line Tools:  xcode-select --install"
                 )
 
-            rgbasm_exe = _shutil.which("rgbasm", path=env["PATH"])
-            if not rgbasm_exe:
-                raise RuntimeError(
-                    "Could not find 'rgbasm'. "
-                    "Install RGBDS: https://github.com/gbdev/rgbds/releases"
-                )
-            ver_result = subprocess.run(
-                [rgbasm_exe, "--version"], capture_output=True, text=True
-            )
-            ver_line = (ver_result.stdout + ver_result.stderr).strip().splitlines()[0] \
-                       if (ver_result.stdout + ver_result.stderr).strip() else ""
-            log(f"  RGBDS: {ver_line}")
+            # Auto-download RGBDS 0.6.0 if not already cached
+            log("Checking RGBDS toolchain…")
+            rgbds_bin = _ensure_rgbds(_RGBDS_YELLOW, log)
+            env["PATH"] = rgbds_bin + os.pathsep + env["PATH"]
 
             proc = subprocess.Popen(
                 [make_exe],
@@ -936,25 +1398,8 @@ def _run_randomizer_yellow(data: dict):
                         "'make' succeeded but no .gbc file found in the output directory."
                     )
 
-            log("\nChoose where to save the ROM…")
             default_name = f"YellowLegacy_Randomized_{seed}.gbc"
-            save_result = subprocess.run(
-                ["osascript", "-e",
-                 f'POSIX path of (choose file name with prompt "Save your randomized ROM:"'
-                 f' default name "{default_name}")'],
-                capture_output=True, text=True, timeout=120,
-            )
-            save_dest = save_result.stdout.strip()
-
-            if save_dest:
-                if not save_dest.lower().endswith(".gbc"):
-                    save_dest += ".gbc"
-                import shutil as _shutil2
-                _shutil2.copy2(rom_path, save_dest)
-                rom_path = save_dest
-                log(f"ROM saved to: {rom_path}")
-            else:
-                log(f"Save dialog cancelled — ROM remains at:\n  {rom_path}")
+            rom_path = _save_rom_with_dialog(rom_path, default_name, ".gbc", log)
 
         log("\n" + "=" * 56)
         if build_rom and rom_path:
@@ -1033,7 +1478,9 @@ def _run_randomizer_emerald(data: dict):
         parser = EmeraldLegacyParser(src, log_fn=log)
         starters_found = parser.parse_all()
 
-        log(f"\nFound: {len(parser.wild_slots)} wild slot(s), "
+        wild_groups = parser.wild_json.get("wild_encounter_groups", [])
+        wild_count  = sum(len(g.get("encounters", [])) for g in wild_groups)
+        log(f"\nFound: {wild_count} wild encounter area(s), "
             f"{len(parser.trainer_parties)} trainer parties, "
             f"{len(parser.field_items)} field item(s), "
             f"{len(parser.static_encounters)} static encounter(s), "
@@ -1042,9 +1489,11 @@ def _run_randomizer_emerald(data: dict):
         # ── Build settings ─────────────────────────────────────────────────────
         s = EmeraldRandomizerSettings(seed=seed)
 
-        # General
-        s.gen_filter              = data.get("genFilter", "all")
-        s.easier_evolutions       = data.get("easierEvolutions", False)
+        # General — generation filter (multi-select checkboxes)
+        s.include_gen1            = data.get("includeGen1", True)
+        s.include_gen2            = data.get("includeGen2", True)
+        s.include_gen3            = data.get("includeGen3", True)
+        s.remove_time_evolutions  = data.get("removeTimeEvolutions", False)
         s.full_hm_compat          = data.get("fullHMCompat", False)
 
         # Starters
@@ -1062,8 +1511,7 @@ def _run_randomizer_emerald(data: dict):
         s.wild_no_legendaries    = data.get("wildNoLegendaries", False)
         s.wild_rand_held_items   = data.get("wildRandHeldItems", False)
         s.wild_ban_bad_held_items = data.get("wildBanBadHeldItems", True)
-        s.randomize_rock_smash   = data.get("randomizeRockSmash", True)
-        s.randomize_fishing      = data.get("randomizeFishing", True)
+        # Rock smash and fishing always randomized — not user-configurable
 
         # Trainers
         s.trainer_mode                = data.get("trainerMode", "random")
@@ -1079,7 +1527,7 @@ def _run_randomizer_emerald(data: dict):
         # Static
         s.static_mode            = data.get("staticMode", "unchanged")
 
-        # Trades (stubs)
+        # In-game trades
         s.trade_mode              = data.get("tradeMode", "unchanged")
         s.trade_rand_nicknames    = data.get("tradeRandNicknames", False)
         s.trade_rand_ot           = data.get("tradeRandOT", False)
@@ -1100,6 +1548,10 @@ def _run_randomizer_emerald(data: dict):
         s.pc_pokemon_enable = data.get("pcPokemonEnable", False)
         s.pc_pokemon        = data.get("pcPokemon", [])
 
+        # Shop patches
+        s.zero_grinding = data.get("zeroGrinding", False)
+        s.elite4_prep   = data.get("elite4Prep", False)
+
         engine = EmeraldRandomizerEngine(
             settings=s,
             species_consts=parser.species_consts,
@@ -1109,36 +1561,35 @@ def _run_randomizer_emerald(data: dict):
             log_fn=log,
         )
 
-        # Log stub features
-        if s.easier_evolutions:
-            log("  [INFO] Easier Evolutions: not yet implemented for Emerald — skipped.")
-        if s.full_hm_compat:
-            log("  [INFO] Full HM Compatibility: not yet implemented for Emerald — skipped.")
-        if s.trade_mode != 'unchanged':
-            log("  [INFO] Trade randomization: not yet implemented for Emerald — skipped.")
-        if s.starter_rand_items:
-            log("  [INFO] Starter held items: not yet implemented for Emerald — skipped.")
-        if s.wild_rand_held_items:
-            log("  [INFO] Wild held item randomization: not yet implemented for Emerald — skipped.")
-        if s.trainer_rival_starter:
-            log("  [INFO] Rival Carries Starter: not yet implemented for Emerald — skipped.")
-
-        # Build level evo map if needed for force-evolve
-        # (Emerald doesn't have a dedicated evo parser yet — placeholder)
-        # engine._level_evo_map = {}
-
         # ── Randomize ──────────────────────────────────────────────────────────
         log("\n--- Randomizing ---")
 
-        rand_wild_json   = parser.wild_json
-        rand_parties     = parser.trainer_parties
-        rand_starters    = [st.species for st in parser.starters]
-        rand_static      = parser.static_encounters
-        rand_field_items = parser.field_items
+        rand_wild_json        = parser.wild_json
+        rand_parties          = parser.trainer_parties
+        rand_starters         = [st.species for st in parser.starters]
+        rand_static           = parser.static_encounters
+        rand_field_items      = parser.field_items
+        rand_trades           = parser.trades
+        rand_tmhm_compat      = parser.tmhm_compat
+        rand_wild_held_items  = parser.wild_held_items
+
+        if s.full_hm_compat:
+            log("TM/HM Compatibility:")
+            if parser.tmhm_compat:
+                rand_tmhm_compat = engine.apply_full_hm_compat(parser.tmhm_compat)
+            else:
+                log("  [WARN] No TM/HM learnsets found in source — skipping.")
 
         if s.wild_mode != "unchanged":
             log("Wild Pokémon:")
             rand_wild_json = engine.randomize_wild(parser.wild_json)
+
+        if s.wild_rand_held_items:
+            log("Wild Held Items:")
+            if parser.wild_held_items:
+                rand_wild_held_items = engine.randomize_wild_held_items(parser.wild_held_items)
+            else:
+                log("  [WARN] No wild held item slots found in source — skipping.")
 
         if s.trainer_mode != "unchanged":
             log("Trainers:")
@@ -1150,6 +1601,16 @@ def _run_randomizer_emerald(data: dict):
                 rand_starters = engine.randomize_starters(parser.starters)
             else:
                 log("[WARN] Starters not found in source — skipping.")
+
+        # Rival carries starter — applied after trainers + starters are decided.
+        # Mutates rand_parties in place (a fresh randomized list when trainers
+        # are randomized), so it is written out by the trainer-parties writer.
+        if s.trainer_rival_starter and s.trainer_mode != "unchanged":
+            log("Rival Carries Starter:")
+            engine.apply_rival_starter(
+                parser.trainer_parties, rand_parties,
+                rand_starters, parser.evolution_to,
+            )
 
         if s.static_mode != "unchanged":
             log("Static Pokémon:")
@@ -1165,6 +1626,13 @@ def _run_randomizer_emerald(data: dict):
             else:
                 log("  [WARN] No field items found in source — skipping.")
 
+        if s.trade_mode != "unchanged":
+            log("In-Game Trades:")
+            if parser.trades:
+                rand_trades = engine.randomize_trades(parser.trades)
+            else:
+                log("  [WARN] No in-game trades found in source — skipping.")
+
         # ── Write output ───────────────────────────────────────────────────────
         log("\n--- Writing output ---")
         writer = EmeraldSourceWriter(src, out, log_fn=log)
@@ -1173,6 +1641,10 @@ def _run_randomizer_emerald(data: dict):
         if s.wild_mode != "unchanged":
             log("Writing wild encounters...")
             writer.write_wild_encounters(rand_wild_json)
+
+        if s.wild_rand_held_items and parser.wild_held_items:
+            log("Writing wild held items...")
+            writer.write_wild_held_items(parser.wild_held_items, rand_wild_held_items)
 
         if s.trainer_mode != "unchanged":
             log("Writing trainer parties...")
@@ -1190,7 +1662,66 @@ def _run_randomizer_emerald(data: dict):
             log("Writing field items...")
             writer.write_field_items(parser.field_items, rand_field_items)
 
+        if s.trade_mode != "unchanged" and parser.trades:
+            log("Writing in-game trades...")
+            writer.write_trades(parser.trades, rand_trades)
+
+        if s.full_hm_compat and parser.tmhm_compat:
+            log("Writing TM/HM compatibility...")
+            writer.write_tmhm_compat(parser.tmhm_compat, rand_tmhm_compat)
+
+        if s.pc_pokemon_enable and s.pc_pokemon:
+            log("Writing PC Pokémon...")
+            writer.write_pc_pokemon(s.pc_pokemon)
+
+        if s.remove_time_evolutions:
+            log("Remove Time-Based Evolutions...")
+            writer.write_remove_time_evolutions()
+
+        if s.randomize_start_items and (s.start_items or s.start_pc_items):
+            log("Writing starting items...")
+            writer.write_starting_items(s.start_items, s.start_pc_items)
+
+        if s.zero_grinding:
+            log("Zero Grinding: adding Rare Candy to Oldale Mart...")
+            writer.write_zero_grinding()
+
+        if s.elite4_prep:
+            log("Elite 4 Prep: stocking Pokémon League Mart...")
+            writer.write_elite4_prep()
+
         writer.flush_all()
+
+        # ── Spoiler log ──
+        try:
+            import spoiler_log
+            from constants_emerald import SPECIES_NAMES as _ESN
+            try:
+                from item_data import EMERALD_ALL_ITEM_DISPLAY_NAMES as _EIN
+            except Exception:
+                _EIN = {}
+            sp = spoiler_log.Spoiler("Pokemon Emerald Legacy", seed, {**_ESN, **_EIN})
+            spoiler_log.build_emerald(sp, parser, {
+                "starters": rand_starters, "wild_json": rand_wild_json,
+                "trainers": rand_parties, "static": rand_static,
+                "field_items": rand_field_items, "trades": rand_trades,
+                "held": rand_wild_held_items,
+            })
+            sp.write(out, log)
+        except Exception as _sp_e:
+            log(f"[WARN] Spoiler log skipped: {_sp_e}")
+
+        # ── Auto-save the exact settings used (reproducibility) ──
+        try:
+            import json as _json
+            _used = {"seed": seed}
+            _used.update({k: v for k, v in data.items()
+                          if k not in ("sourceDir", "outputDir", "seed")})
+            with open(os.path.join(out, "settings_used.json"), "w", encoding="utf-8") as _sf:
+                _json.dump(_used, _sf, indent=2)
+            log(f"Settings saved: {os.path.join(out, 'settings_used.json')}")
+        except Exception as _se:
+            log(f"[WARN] Could not save settings_used.json: {_se}")
 
         # ── Optional ROM build ─────────────────────────────────────────────────
         build_rom = data.get("buildRom", True)
@@ -1203,8 +1734,8 @@ def _run_randomizer_emerald(data: dict):
 
             import shutil as _shutil
             env = os.environ.copy()
-            extra_paths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]
-            env["PATH"] = ":".join(extra_paths + env.get("PATH", "").split(":"))
+            base_paths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]
+            env["PATH"] = os.pathsep.join(base_paths + env.get("PATH", "").split(os.pathsep))
 
             make_exe = _shutil.which("make", path=env["PATH"])
             if not make_exe:
@@ -1212,6 +1743,23 @@ def _run_randomizer_emerald(data: dict):
                     "Could not find 'make'. "
                     "Install Xcode Command Line Tools:  xcode-select --install"
                 )
+
+            # Auto-install devkitARM + agbcc if not present (one-time setup)
+            log("Checking GBA toolchain (devkitARM + agbcc)…")
+            gba_env = _ensure_gba_toolchain(log)
+            # Prepend devkitARM bins and set required env vars for pokeemerald Makefile
+            env["DEVKITPRO"]       = gba_env["DEVKITPRO"]
+            env["DEVKITARM"]       = gba_env["DEVKITARM"]
+            env["PATH"]            = gba_env["PATH"] + os.pathsep + env["PATH"]
+            env["PKG_CONFIG_PATH"] = gba_env["PKG_CONFIG_PATH"]
+
+            # Install agbcc into the output directory (tools/agbcc/)
+            import shutil as _sh_agbcc
+            agbcc_src = gba_env["agbcc_install_dir"]
+            agbcc_dst = os.path.join(out, "tools", "agbcc")
+            if not os.path.isfile(os.path.join(agbcc_dst, "bin", "agbcc")):
+                log("  Installing agbcc into output directory…")
+                _sh_agbcc.copytree(agbcc_src, agbcc_dst, dirs_exist_ok=True)
 
             proc = subprocess.Popen(
                 [make_exe],
@@ -1228,8 +1776,7 @@ def _run_randomizer_emerald(data: dict):
             if proc.returncode != 0:
                 raise RuntimeError(
                     f"'make' failed with exit code {proc.returncode}. "
-                    "Check the log above for compiler errors. "
-                    "Make sure devkitARM is installed and in your PATH."
+                    "Check the log above for compiler errors."
                 )
 
             # Find the ROM — Emerald typically outputs pokeemerald.gba
@@ -1249,25 +1796,8 @@ def _run_randomizer_emerald(data: dict):
                         "'make' succeeded but no .gba file found in the output directory."
                     )
 
-            log("\nChoose where to save the ROM…")
             default_name = f"EmeraldLegacy_Randomized_{seed}.gba"
-            save_result = subprocess.run(
-                ["osascript", "-e",
-                 f'POSIX path of (choose file name with prompt "Save your randomized ROM:"'
-                 f' default name "{default_name}")'],
-                capture_output=True, text=True, timeout=120,
-            )
-            save_dest = save_result.stdout.strip()
-
-            if save_dest:
-                if not save_dest.lower().endswith(".gba"):
-                    save_dest += ".gba"
-                import shutil as _shutil2
-                _shutil2.copy2(rom_path, save_dest)
-                rom_path = save_dest
-                log(f"ROM saved to: {rom_path}")
-            else:
-                log(f"Save dialog cancelled — ROM remains at:\n  {rom_path}")
+            rom_path = _save_rom_with_dialog(rom_path, default_name, ".gba", log)
 
         log("\n" + "=" * 56)
         if build_rom and rom_path:

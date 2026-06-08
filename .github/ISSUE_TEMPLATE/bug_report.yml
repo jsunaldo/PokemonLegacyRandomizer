@@ -1,0 +1,67 @@
+name: 🐛 Bug Report
+description: Report a problem with the randomizer or a generated ROM
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+
+        **The single most helpful thing you can attach is your `settings_used.json`** — it's saved
+        automatically in your output folder next to the ROM and reproduces your exact run (seed + every option).
+        If the issue is in-game, the `spoiler_log.txt` from that folder helps too.
+  - type: dropdown
+    id: game
+    attributes:
+      label: Which game?
+      options:
+        - Yellow Legacy
+        - Crystal Legacy
+        - Emerald Legacy
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: When did it happen?
+      options:
+        - Randomizing (before the ROM build)
+        - Building the ROM (the "make" step)
+        - In-game (while playing the randomized ROM)
+        - Using the app UI (settings, save/load, etc.)
+    validations:
+      required: true
+  - type: input
+    id: seed
+    attributes:
+      label: Seed
+      description: The seed shown in the app (use the 📋 copy button next to it).
+      placeholder: e.g. 482915
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What went wrong, what did you expect, and the steps to reproduce it.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output / build log
+      description: Paste any error message or the build log. (No need for screenshots of text.)
+      render: shell
+  - type: input
+    id: os
+    attributes:
+      label: macOS version
+      placeholder: e.g. macOS 14.5
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I attached my `settings_used.json` (from the output folder) — or pasted my exact settings
+          required: false
+        - label: I searched existing issues and this isn't a duplicate
+          required: true

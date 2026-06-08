@@ -118,6 +118,26 @@
     line-height: 1;
   }
 
+  .cart {
+    width: 190px;
+    height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cart-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    border-radius: 10px;
+    filter: drop-shadow(0 6px 16px rgba(0,0,0,.45));
+    transition: transform .18s ease;
+  }
+  .game-card:hover .cart-img {
+    transform: translateY(-3px) scale(1.04) rotate(-1deg);
+  }
+
   .game-name {
     font-size: 17px;
     font-weight: 700;
@@ -212,56 +232,60 @@
 
 <div class="game-grid">
 
-  <!-- Crystal Legacy -->
-  <a class="game-card crystal" href="/crystal">
-    <div class="game-icon">💎</div>
+  <!-- Yellow Legacy -->
+  <a class="game-card yellow" href="/yellow">
+    <div class="cart">
+      <img class="cart-img" src="img/yellow.png" alt="Yellow Legacy cartridge"
+           onerror="this.onerror=function(){this.onerror=null;this.src='img/yellow.svg';};this.src='img/yellow.jpg';">
+    </div>
     <div>
-      <div class="game-name">Crystal Legacy</div>
-      <div class="game-badge">Gen 1 &amp; 2 · GBC</div>
+      <div class="game-name">Yellow Legacy</div>
     </div>
     <div class="game-desc">
-      Official Crystal Legacy ROM hack.<br>
-      251 Pokémon, Gen 2 mechanics,<br>
-      full feature set.
+      SmithPlaysPokemon's Yellow Legacy ROM Hack
     </div>
     <div class="launch-btn">Open Randomizer →</div>
   </a>
 
-  <!-- Yellow Legacy -->
-  <div class="game-card yellow coming-soon">
-    <div class="game-icon">⚡</div>
+  <!-- Crystal Legacy -->
+  <a class="game-card crystal" href="/crystal">
+    <div class="cart">
+      <img class="cart-img" src="img/crystal.png" alt="Crystal Legacy cartridge"
+           onerror="this.onerror=function(){this.onerror=null;this.src='img/crystal.svg';};this.src='img/crystal.jpg';">
+    </div>
     <div>
-      <div class="game-name">Yellow Legacy</div>
-      <div class="game-badge">Gen 1 · GB</div>
+      <div class="game-name">Crystal Legacy</div>
     </div>
     <div class="game-desc">
-      SmithPlaysPokemon's Yellow Legacy<br>
-      ROM hack. 151 Pokémon,<br>
-      Gen 1 mechanics.
+      SmithPlaysPokemon's Crystal Legacy ROM Hack
     </div>
-    <div class="coming-soon-badge">Coming Soon</div>
-  </div>
+    <div class="launch-btn">Open Randomizer →</div>
+  </a>
 
   <!-- Emerald Legacy -->
-  <div class="game-card emerald coming-soon">
-    <div class="game-icon">💚</div>
+  <a class="game-card emerald" href="/emerald">
+    <div class="cart">
+      <img class="cart-img" src="img/emerald.png" alt="Emerald Legacy cartridge"
+           onerror="this.onerror=function(){this.onerror=null;this.src='img/emerald.svg';};this.src='img/emerald.jpg';">
+    </div>
     <div>
       <div class="game-name">Emerald Legacy</div>
-      <div class="game-badge">Gen 1–3 · GBA</div>
     </div>
     <div class="game-desc">
-      cRz-Shadows's Emerald Legacy<br>
-      ROM hack. 386 Pokémon,<br>
-      Gen 3 mechanics.
+      SmithPlaysPokemon's Emerald Legacy ROM Hack
     </div>
-    <div class="coming-soon-badge">Coming Soon</div>
-  </div>
+    <div class="launch-btn">Open Randomizer →</div>
+  </a>
 
 </div>
 
 <p class="footer">
-  Each randomizer modifies the ASM source files directly and optionally
-  compiles a playable ROM. Requires RGBDS and GNU Make to build.
+  Each randomizer modifies the source files directly and optionally compiles
+  a playable ROM. GBC builds require RGBDS + GNU Make; GBA builds require devkitARM + Make.
+  <br><br>
+  Found a bug or have an idea?
+  <a href="https://github.com/jsunaldo/PokemonLegacyRandomizer/issues" target="_blank" rel="noopener">🐛 Report it on GitHub</a>
+  — please attach your <code>settings_used.json</code> (saved next to your ROM).
 </p>
 
 </body>

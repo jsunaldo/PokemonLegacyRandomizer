@@ -1345,15 +1345,22 @@ class SourceWriter:
             return
 
         self.log("  ✓ _ResetWRAM injection point found and patched.")
+        # Use callfar: the routine lives in its own floating ROMX section
+        # (see below), which the linker may place in a different bank than
+        # intro_menu.asm.  A plain `call` only reaches the same bank / home,
+        # so it would jump to the wrong bank for large mon lists.
         new_text = injection_pat.sub(
-            r'\1\tcall RandomizerInitPCMons\n\2', text, count=1
+            r'\1\tcallfar RandomizerInitPCMons\n\2', text, count=1
         )
 
         # Split boxes into the two SRAM banks (1-7 share a bank, 8-14 share another)
         bank2 = {n: m for n, m in box_mons.items() if 1 <= n <= 7}
         bank3 = {n: m for n, m in box_mons.items() if 8 <= n <= 14}
 
-        asm = ['; ---- Randomizer: PC Pokémon injection ----', 'RandomizerInitPCMons::']
+        # Own floating section so a large routine can't overflow intro_menu's bank.
+        asm = ['; ---- Randomizer: PC Pokémon injection ----',
+               'SECTION "Randomizer PC Mons", ROMX',
+               'RandomizerInitPCMons::']
 
         if bank2:
             asm.append('\tld a, BANK(sBox1)')

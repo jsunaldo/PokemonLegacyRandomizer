@@ -1,0 +1,2185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emerald Legacy Randomizer — Pokemon Legacy Randomizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #0f0f1a;
+    --panel: #16213e;
+    --card: #1a2744;
+    --accent: #4caf7d;
+    --accent2: #f5a623;
+    --btn: #0f3460;
+    --btn-hover: #1a3d70;
+    --text: #dce3f0;
+    --fg: #dce3f0;
+    --muted: #7a8ba8;
+    --border: #243561;
+    --green: #4caf7d;
+    --red: #e94560;
+    --input-bg: #0d1b35;
+    --surface: #16213e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  header {
+    background: var(--panel);
+    border-bottom: 2px solid var(--accent);
+    padding: 18px 32px 14px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .pokeball {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(180deg, var(--accent) 50%, #dce3f0 50%);
+    border: 3px solid #243561;
+    position: relative; flex-shrink: 0;
+  }
+  .pokeball::before {
+    content: ""; position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--text); border: 2px solid #243561;
+  }
+  .pokeball::after {
+    content: ""; position: absolute;
+    top: calc(50% - 1.5px); left: 0; right: 0; height: 3px;
+    background: #243561;
+  }
+  header h1 { font-size: 22px; font-weight: 700; color: var(--text); }
+  header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Paths bar */
+  .paths {
+    background: var(--panel);
+    padding: 14px 32px;
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: end;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+  .input-row { display: flex; gap: 6px; }
+  input[type=text] {
+    flex: 1; background: var(--input-bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 7px 10px;
+    font-size: 13px; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--accent); }
+
+  /* Randomize panel */
+  .rand-action {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 18px; padding: 32px 0 24px;
+  }
+  .btn-randomize {
+    background: var(--accent); color: #fff;
+    padding: 16px 52px; font-size: 17px; font-weight: 700;
+    border-radius: 10px; letter-spacing: .02em;
+    box-shadow: 0 4px 24px rgba(76,175,125,.35);
+    transition: background .15s, transform .08s, box-shadow .15s;
+  }
+  .btn-randomize:hover { background: #3d8f64; box-shadow: 0 4px 32px rgba(76,175,125,.5); }
+  .btn-randomize:disabled { background: #1a3d2a; color: #999; cursor: not-allowed; box-shadow: none; }
+  .rand-status { display: flex; align-items: center; gap: 10px; min-height: 22px; }
+  .rand-seed-row { display: flex; align-items: flex-end; gap: 10px; }
+
+  /* Buttons */
+  button {
+    cursor: pointer; border: none; border-radius: 6px;
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    transition: background .15s, transform .08s;
+  }
+  button:active { transform: scale(.97); }
+  .btn-secondary {
+    background: var(--btn); color: var(--text); padding: 7px 13px; white-space: nowrap;
+  }
+  .btn-secondary:hover { background: var(--btn-hover); }
+  .btn-dice { background: var(--btn); color: var(--accent2); padding: 7px 13px; font-size: 16px; }
+  .btn-dice:hover { background: var(--btn-hover); }
+
+  /* Main layout */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* Tabs */
+  .tabs {
+    width: 170px; flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 16px 0;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .tab-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 20px; font-size: 13px; font-weight: 500;
+    background: none; color: var(--muted); border-radius: 0;
+    text-align: left; border-left: 3px solid transparent;
+    transition: all .15s;
+  }
+  .tab-btn .icon { font-size: 18px; }
+  .tab-btn:hover { color: var(--text); background: rgba(255,255,255,.04); }
+  .tab-btn.active {
+    color: var(--text); background: rgba(76,175,125,.1);
+    border-left-color: var(--accent);
+  }
+
+  /* Tab panels */
+  .panels { flex: 1; overflow-y: auto; padding: 24px 28px; }
+  .panel { display: none; max-width: 700px; }
+  .panel.active { display: block; }
+
+  .section {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 22px; margin-bottom: 16px;
+  }
+  .section-title {
+    font-size: 12px; font-weight: 700; color: var(--accent);
+    letter-spacing: .08em; text-transform: uppercase;
+    margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+  /* Options — no dividers */
+  .option {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 6px 0; cursor: pointer;
+  }
+  .option input[type=checkbox],
+  .option input[type=radio] { margin-top: 2px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+  .option .opt-label { font-size: 14px; }
+  .option .opt-desc  { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+  .option-group { display: flex; flex-direction: column; gap: 2px; }
+
+  /* Starter grid */
+  .starter-grid {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 12px;
+  }
+  @media (max-width: 560px) { .starter-grid { grid-template-columns: 1fr; } }
+  .starter-item label { font-size: 12px; color: var(--muted); margin-bottom: 4px; display: block; }
+
+  select {
+    width: 100%; background: var(--input-bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 7px 10px;
+    font-size: 13px; outline: none; appearance: none; cursor: pointer;
+  }
+  select:focus { border-color: var(--accent); }
+
+  .status-text { font-size: 13px; color: var(--muted); }
+  .spinner {
+    width: 18px; height: 18px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .7s linear infinite; display: none; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Log */
+  .log-wrap { background: var(--panel); border-top: 1px solid var(--border); }
+  .log-toggle {
+    padding: 8px 32px; font-size: 12px; color: var(--accent);
+    cursor: pointer; user-select: none;
+  }
+  .log-toggle:hover { color: var(--text); }
+  #log-box {
+    display: none; height: 180px; overflow-y: auto;
+    background: #08101f; color: #6effa0;
+    font-family: "SF Mono", "Consolas", monospace;
+    font-size: 12px; padding: 12px 20px; line-height: 1.6;
+    border-top: 1px solid var(--border); white-space: pre-wrap; word-break: break-all;
+  }
+
+  code {
+    background: var(--input-bg); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 4px; color: var(--accent2);
+    font-family: "SF Mono", "Consolas", monospace;
+  }
+
+  /* How-to */
+  .how-step {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+  }
+  .how-step:last-child { border-bottom: none; }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; flex-shrink: 0;
+  }
+  .step-body h3 { font-size: 14px; margin-bottom: 4px; }
+  .step-body p  { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 6px; }
+  .how-note {
+    background: rgba(245,166,35,.08); border: 1px solid rgba(245,166,35,.3);
+    border-radius: 6px; padding: 10px 14px; font-size: 12.5px; color: var(--fg);
+    line-height: 1.6; margin: 10px 0;
+  }
+  .how-note.info  { background: rgba(83,145,255,.08); border-color: rgba(83,145,255,.3); }
+  .how-note.success { background: rgba(76,175,125,.08); border-color: rgba(76,175,125,.3); }
+  .how-req-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+  .how-req-card {
+    background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px;
+  }
+  .how-req-card .req-icon { font-size: 20px; margin-bottom: 6px; }
+  .how-req-card .req-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .how-req-card .req-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .how-req-card .req-desc a { color: var(--accent); text-decoration: none; }
+  .how-req-card .req-desc a:hover { text-decoration: underline; }
+  .how-tip-list { margin: 0; padding-left: 18px; }
+  .how-tip-list li { font-size: 12.5px; color: var(--muted); line-height: 1.65; margin-bottom: 3px; }
+  .how-tip-list li strong { color: var(--text); }
+  .how-tip-list li a { color: var(--accent); text-decoration: none; }
+
+  /* Item rows */
+  .item-row { display: flex; gap: 8px; align-items: center; }
+  .item-row input[type=number] {
+    width: 64px; background: var(--input-bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 5px 8px;
+    font-size: 12px; outline: none; text-align: center;
+  }
+  .item-row input[type=number]:focus { border-color: var(--accent); }
+  .btn-remove {
+    background: rgba(233,69,96,.15); color: var(--red);
+    border: 1px solid rgba(233,69,96,.3);
+    padding: 4px 8px; font-size: 14px; border-radius: 6px; flex-shrink: 0; line-height: 1;
+  }
+  .btn-remove:hover { background: rgba(233,69,96,.3); }
+  .btn-dup {
+    background: rgba(120,140,200,.16); color: var(--text);
+    border: 1px solid rgba(120,140,200,.32);
+    padding: 4px 8px; font-size: 14px; border-radius: 6px; flex-shrink: 0; line-height: 1; cursor: pointer;
+  }
+  .btn-dup:hover { background: rgba(120,140,200,.32); }
+
+  /* PC Mon cards */
+  .pc-mon-card {
+    background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
+  }
+  .pc-mon-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px; flex-wrap: wrap; }
+  .pc-mon-row:last-child { margin-bottom: 0; }
+  .pc-mon-field { display: flex; flex-direction: column; gap: 3px; }
+  .pc-mon-field > label {
+    font-size: 10px; color: var(--muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .pc-mon-species { flex: 1; min-width: 160px; }
+  .pc-mon-select, .pc-mon-number, .pc-mon-nick {
+    background: var(--input-bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 5px 8px; font-size: 12px; outline: none;
+  }
+  .pc-mon-select:focus, .pc-mon-number:focus, .pc-mon-nick:focus { border-color: var(--accent); }
+  .pc-mon-number { width: 54px; text-align: center; }
+  .pc-mon-nick { width: 180px; }
+  .pc-mon-dvs-wrap { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .pc-mon-dv { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+  .pc-mon-dv label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .pc-mon-dv-input {
+    width: 40px; background: var(--input-bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 4px; font-size: 12px; outline: none; text-align: center;
+  }
+  .pc-mon-dv-input:focus { border-color: var(--accent); }
+  .pc-mon-section-label {
+    font-size: 10px; color: var(--muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .04em; width: 100%; margin-bottom: 4px;
+  }
+
+  /* Combobox */
+  .cb-wrap { position: relative; flex: 1; }
+  .cb-input {
+    width: 100%; background: var(--input-bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 5px 8px;
+    font-size: 12px; outline: none; box-sizing: border-box;
+  }
+  .cb-input:focus { border-color: var(--accent); }
+  .cb-dropdown {
+    position: absolute; top: calc(100% + 3px); left: 0; right: 0; z-index: 200;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    max-height: 220px; overflow-y: auto; display: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  }
+  .cb-dropdown.open { display: block; }
+  .cb-opt { padding: 7px 12px; font-size: 12px; cursor: pointer; color: var(--text); }
+  .cb-opt:hover, .cb-opt.active { background: rgba(76,175,125,.15); color: #fff; }
+  .cb-none { padding: 8px 12px; font-size: 12px; color: var(--muted); }
+
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; margin-left: 6px; }
+  .badge-green   { background: rgba(76,175,125,.15); color: var(--green); border: 1px solid var(--green); }
+  .badge-emerald { background: rgba(76,175,125,.12); color: var(--accent); border: 1px solid var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="pokeball"></div>
+  <div style="flex:1">
+    <h1>Pokemon Emerald Legacy Randomizer</h1>
+    <p>Modifies the GBA source and optionally compiles it into a playable ROM</p>
+  </div>
+  <a href="/" style="display:flex;align-items:center;gap:6px;background:var(--btn);color:var(--muted);
+     border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;text-decoration:none;
+     border:1px solid var(--border);transition:all .15s;flex-shrink:0;"
+     onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--accent)'"
+     onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">
+    ← Game Select
+  </a>
+</header>
+
+<!-- Paths bar -->
+<div class="paths">
+  <div class="field">
+    <label>Source Directory</label>
+    <div class="input-row">
+      <input type="text" id="srcDir" placeholder="Path to Pokemon_Emerald_Legacy source…">
+      <button class="btn-secondary" onclick="browse('src')">Browse</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Output Directory</label>
+    <div class="input-row">
+      <input type="text" id="outDir" placeholder="Where to save randomized source…">
+      <button class="btn-secondary" onclick="browse('out')">Browse</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <nav class="tabs">
+    <button class="tab-btn active" onclick="showTab('general',this)">
+      <span class="icon">⚙️</span> General
+    </button>
+    <button class="tab-btn" onclick="showTab('starters',this)">
+      <span class="icon">🌱</span> Starters
+    </button>
+    <button class="tab-btn" onclick="showTab('wild',this)">
+      <span class="icon">🌿</span> Wild Pokémon
+    </button>
+    <button class="tab-btn" onclick="showTab('trainers',this)">
+      <span class="icon">🧢</span> Trainers
+    </button>
+    <button class="tab-btn" onclick="showTab('static',this)">
+      <span class="icon">🗿</span> Static Pokémon
+    </button>
+    <button class="tab-btn" onclick="showTab('trades',this)">
+      <span class="icon">🤝</span> In-Game Trades
+    </button>
+    <button class="tab-btn" onclick="showTab('items',this)">
+      <span class="icon">🎒</span> Items
+    </button>
+    <button class="tab-btn" onclick="showTab('randomize',this)">
+      <span class="icon">⚡</span> Randomize
+    </button>
+    <button class="tab-btn" onclick="showTab('howto',this)">
+      <span class="icon">📖</span> How to Use
+    </button>
+    <button class="tab-btn" onclick="showTab('donate',this)">
+      <span class="icon">⚡</span> Donate
+    </button>
+  </nav>
+
+  <div class="panels">
+
+    <!-- ── GENERAL ── -->
+    <div class="panel active" id="panel-general">
+
+      <div class="section">
+        <div class="section-title">Pokémon Pool</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+          Choose which generations can appear in wild encounters, trainer parties, and starters.
+          Mix and match freely — e.g. Gen 1 + Gen 2 only. At least one must be selected.
+          Does not affect species that are explicitly kept unchanged.
+        </p>
+        <label class="option">
+          <input type="checkbox" id="includeGen1" checked onchange="onGenFilterChange()">
+          <div class="option-group">
+            <div class="opt-label">Gen 1 — Bulbasaur through Mew (#001–151)</div>
+            <div class="opt-desc">The original 151 Kanto Pokémon</div>
+          </div>
+        </label>
+        <label class="option">
+          <input type="checkbox" id="includeGen2" checked onchange="onGenFilterChange()">
+          <div class="option-group">
+            <div class="opt-label">Gen 2 — Chikorita through Celebi (#152–251)</div>
+            <div class="opt-desc">The 100 Johto Pokémon</div>
+          </div>
+        </label>
+        <label class="option">
+          <input type="checkbox" id="includeGen3" checked onchange="onGenFilterChange()">
+          <div class="option-group">
+            <div class="opt-label">Gen 3 — Treecko through Deoxys (#252–386)</div>
+            <div class="opt-desc">The 135 native Hoenn Pokémon</div>
+          </div>
+        </label>
+        <p id="genFilterWarning" style="display:none;font-size:12px;color:var(--red);margin-top:6px">
+          ⚠️ At least one generation must be selected.
+        </p>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Evolutions</div>
+        <label class="option">
+          <input type="checkbox" id="removeTimeEvolutions">
+          <div class="option-group">
+            <div class="opt-label">Remove Special-Condition Evolutions</div>
+            <div class="opt-desc">Replaces condition-based evolutions with item evolutions:
+              Espeon (Sun Stone), Umbreon (Moon Stone), Milotic (Sun Stone),
+              Hitmonlee (Black Belt), Hitmonchan (Macho Brace)</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Movesets</div>
+        <label class="option">
+          <input type="checkbox" id="fullHMCompat">
+          <div class="option-group">
+            <div class="opt-label">Full HM Compatibility</div>
+            <div class="opt-desc">Every Pokémon can learn every HM move — Cut, Fly, Surf, Strength, Flash,
+              Rock Smash, Waterfall, and Dive. Prevents randomized runs from becoming uncompletable
+              because a required field move can't be taught</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- ── STARTERS ── -->
+    <div class="panel" id="panel-starters">
+      <div class="section">
+        <div class="section-title">Starter Pokémon</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+          Emerald Legacy has three starters: Treecko, Torchic, and Mudkip.
+          The randomizer patches the starter selection array in <code>src/starter_choose.c</code>.
+        </p>
+
+        <label class="option">
+          <input type="radio" name="starterMode" id="starterUnchanged" value="unchanged" onchange="onStarterModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Unchanged</div>
+            <div class="opt-desc">Keep the original starters: Treecko, Torchic, and Mudkip</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="starterMode" id="starterCustom" value="custom" onchange="onStarterModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Custom</div>
+            <div class="opt-desc">Pick exactly which three Pokémon appear as starters</div>
+          </div>
+        </label>
+        <div class="starter-grid" id="customStarterGrid" style="display:none;margin-bottom:6px">
+          <div class="starter-item">
+            <label>Starter 1</label>
+            <div id="customCb0"></div>
+          </div>
+          <div class="starter-item">
+            <label>Starter 2</label>
+            <div id="customCb1"></div>
+          </div>
+          <div class="starter-item">
+            <label>Starter 3</label>
+            <div id="customCb2"></div>
+          </div>
+        </div>
+
+        <label class="option">
+          <input type="radio" name="starterMode" id="starterRandom" value="random" checked onchange="onStarterModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Random</div>
+            <div class="opt-desc">All three starter slots are independently randomized from the Pokémon pool</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="starterMode" id="starterTwoStage" value="random_two_stage" onchange="onStarterModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Random (basic Pokémon with 2 evolutions)</div>
+            <div class="opt-desc">Only picks from Pokémon that are the first stage of a 3-stage evolution line (e.g. Treecko, Charmander, Larvitar)</div>
+          </div>
+        </label>
+
+      </div>
+
+      <!-- PC Pokémon -->
+      <div class="section">
+        <div class="section-title">PC Pokémon</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+          Add specific Pokémon to your PC at the start of a new game.
+          IVs are 0–31 (31 = perfect). Moves default to the Pokémon's level-up moves if left as None.
+        </p>
+        <label class="option" style="margin-bottom:14px">
+          <input type="checkbox" id="pcPokemonEnable" onchange="onPCPokemonChange()">
+          <div class="option-group">
+            <div class="opt-label">Add Pokémon to PC</div>
+            <div class="opt-desc">When unchecked, the PC starts empty (vanilla behaviour)</div>
+          </div>
+        </label>
+        <div id="pcPokemonBody" style="display:none">
+          <div id="pcMonList" style="margin-bottom:10px"></div>
+          <button class="btn-secondary" style="font-size:12px;padding:6px 12px" onclick="addPCMon()">+ Add PC Pokémon</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── WILD ── -->
+    <div class="panel" id="panel-wild">
+      <div class="section">
+        <div class="section-title">Wild Pokémon</div>
+
+        <label class="option">
+          <input type="radio" name="wildMode" id="wildUnchanged" value="unchanged" onchange="onWildModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Unchanged</div>
+            <div class="opt-desc">Keep all wild Pokémon exactly as they are in the source</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="wildMode" id="wildRandom" value="random" checked onchange="onWildModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Random</div>
+            <div class="opt-desc">Every slot is replaced independently at random. Applies to grass, surfing, fishing, rock smash, cave, and all other encounter types</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="wildMode" id="wildArea1to1" value="area1to1" onchange="onWildModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Area 1 to 1 Mapping</div>
+            <div class="opt-desc">Each area gets its own mapping — a species that appears multiple times in one area always maps to the same replacement, but different areas may map it differently</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="wildMode" id="wildGlobal1to1" value="global1to1" onchange="onWildModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Global 1 to 1 Mapping</div>
+            <div class="opt-desc">One consistent mapping for the whole game — if Wurmple maps to Ralts in one route, it maps to Ralts on every route</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="section" id="wildRuleSection" style="opacity:.35;pointer-events:none">
+        <div class="section-title">Additional Rule</div>
+
+        <label class="option">
+          <input type="radio" name="wildRule" id="wildRuleNone" value="none" checked>
+          <div class="option-group">
+            <div class="opt-label">None</div>
+            <div class="opt-desc">No extra constraints on replacement picks</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="wildRule" id="wildRuleSimilar" value="similar_strength">
+          <div class="option-group">
+            <div class="opt-label">Similar Strength</div>
+            <div class="opt-desc">Replacements are chosen from Pokémon with a similar Base Stat Total,
+              keeping area difficulty roughly consistent</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="wildRule" id="wildRuleCatchAll" value="catch_em_all">
+          <div class="option-group">
+            <div class="opt-label">Catch 'Em All Mode</div>
+            <div class="opt-desc">Distributes pool species across all slots so that every Pokémon in the available pool is guaranteed to appear at least once in the wild</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="wildRule" id="wildRuleTypeThemed" value="type_themed">
+          <div class="option-group">
+            <div class="opt-label">Type Themed Areas</div>
+            <div class="opt-desc">Each route or area is assigned a random type — all wild Pokémon in that area will share that type, giving each area a distinct identity</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="section" id="wildExtraSection" style="opacity:.35;pointer-events:none">
+        <div class="section-title">Extra</div>
+
+        <label class="option">
+          <input type="checkbox" id="wildNoLegendaries">
+          <div class="option-group">
+            <div class="opt-label">Don't Use Legendaries</div>
+            <div class="opt-desc">Exclude legendary and mythical Pokémon from the wild encounter pool</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="checkbox" id="wildRandHeldItems" onchange="syncWildBanBadHeld()">
+          <div class="option-group">
+            <div class="opt-label">Randomize Held Items</div>
+            <div class="opt-desc">Randomize the items that wild Pokémon may hold when encountered
+              <label class="option sub-option" id="wildBanBadHeldRow" style="display:none;margin-top:4px">
+                <input type="checkbox" id="wildBanBadHeldItems" checked>
+                <div class="opt-label" style="font-size:12px">Ban Bad Items <span style="color:var(--muted);font-weight:400">(exclude situational / ineffective items)</span></div>
+              </label>
+            </div>
+          </div>
+        </label>
+      </div>
+
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">
+        ℹ️ Levels are always preserved — only species are replaced.
+        The Pokémon pool is controlled by the <strong>General</strong> tab.
+        All encounter types (grass, surfing, cave, fishing, rock smash) are stored in
+        <code>src/data/wild_encounters.json</code>.
+      </p>
+    </div>
+
+    <!-- ── TRAINERS ── -->
+    <div class="panel" id="panel-trainers">
+      <div class="section">
+        <div class="section-title">Trainer Pokémon</div>
+
+        <label class="option">
+          <input type="radio" name="trainerMode" id="trainerUnchanged" value="unchanged" onchange="onTrainerModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Unchanged</div>
+            <div class="opt-desc">All trainer parties remain exactly as defined in the game</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="trainerMode" id="trainerRandom" value="random" checked onchange="onTrainerModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Random</div>
+            <div class="opt-desc">Each trainer slot is replaced with a completely random Pokémon. Boss trainers (gym leaders, Elite Four) draw from a separate, stricter pool</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="trainerMode" id="trainerRandomEven" value="random_even" onchange="onTrainerModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Random (Even Distribution)</div>
+            <div class="opt-desc">The full Pokémon pool is shuffled once and distributed evenly across every trainer slot in the game, ensuring each Pokémon appears roughly the same number of times</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="trainerMode" id="trainerTypeThemed" value="type_themed" onchange="onTrainerModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Type Themed</div>
+            <div class="opt-desc">Every trainer — including regular ones — is assigned a random type, and all of their Pokémon share that type, giving each trainer a distinct identity</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="trainerMode" id="trainerTypeThemedBoss" value="type_themed_boss" onchange="onTrainerModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Type Themed (Elite 4 / Gym Leaders Only)</div>
+            <div class="opt-desc">Only gym leaders, Elite Four, and major rivals receive type-themed parties. Regular trainers are still randomized randomly</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="section" id="trainerAdditionalSection" style="opacity:.35;pointer-events:none">
+        <div class="section-title">Additional</div>
+
+        <label class="option">
+          <input type="checkbox" id="trainerRivalStarter">
+          <div class="option-group">
+            <div class="opt-label">Rival Carries Starter Through the Game</div>
+            <div class="opt-desc">The rival always has the starter Pokémon (and its evolutions) that counters your chosen starter, just like in the original game. Works with randomized starters</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="checkbox" id="trainerSimilarStrength">
+          <div class="option-group">
+            <div class="opt-label">Try to Use Pokémon with Similar Strength</div>
+            <div class="opt-desc">Replacements are chosen from Pokémon with a similar Base Stat Total to the original, keeping the difficulty curve roughly consistent</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="checkbox" id="trainerNoLegend">
+          <div class="option-group">
+            <div class="opt-label">Don't Use Legendaries</div>
+            <div class="opt-desc">Legendary and mythical Pokémon are excluded from trainer parties. Note: boss trainers (gym leaders, Elite Four) already exclude legendaries by default</div>
+          </div>
+        </label>
+
+        <label class="option" id="trainerWeightTypesRow" style="opacity:.35;pointer-events:none">
+          <input type="checkbox" id="trainerWeightTypes">
+          <div class="option-group">
+            <div class="opt-label">Weight Types by Number of Pokémon</div>
+            <div class="opt-desc">When assigning a type theme, types with more available Pokémon are more likely to be chosen — prevents trainers from being stuck with tiny, repetitive pools (only applies to Type Themed modes)</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="section" id="trainerEvoSection" style="opacity:.35;pointer-events:none">
+        <div class="section-title">Evolution Forcing</div>
+
+        <label class="option" style="align-items:flex-start">
+          <input type="checkbox" id="trainerForceEvolved" onchange="syncTrainerForceEvolved()">
+          <div class="option-group">
+            <div class="opt-label">Force Fully Evolved at Level:</div>
+            <div class="opt-desc">Any trainer Pokémon at or above the chosen level that is not its final
+              evolution will be replaced with its fully evolved form</div>
+            <div id="trainerForceEvoRow" style="display:none;margin-top:6px">
+              <input type="range" id="trainerForceEvoLevel" min="30" max="65" value="30"
+                     oninput="document.getElementById('trainerForceEvoLabel').textContent=this.value"
+                     style="width:140px;vertical-align:middle">
+              <span id="trainerForceEvoLabel" style="font-size:13px;margin-left:6px;color:var(--fg)">30</span>
+            </div>
+          </div>
+        </label>
+      </div>
+
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">
+        ℹ️ Levels, moves, and held items are preserved — only species are replaced.
+        The Pokémon pool is controlled by the <strong>General</strong> tab.
+      </p>
+    </div>
+
+    <!-- ── STATIC ── -->
+    <div class="panel" id="panel-static">
+      <div class="section">
+        <div class="section-title">Pokémon</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
+          Static Pokémon are encountered at fixed overworld locations — not in wild grass or trainer parties.
+          Examples: Kyogre, Groudon, Rayquaza, the Regis, Latias/Latios, and gift Pokémon such as
+          the Castform, Beldum, and the fossil revivals.
+        </p>
+
+        <label class="option">
+          <input type="radio" name="staticMode" id="staticUnchanged" value="unchanged" checked onchange="onStaticModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Unchanged</div>
+            <div class="opt-desc">All static encounters remain exactly as the game defines them</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="staticMode" id="staticSwap" value="swap" onchange="onStaticModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Swap Legendaries &amp; Swap Standards</div>
+            <div class="opt-desc">Legendary statics (Kyogre, Groudon, Rayquaza, Regis…) are replaced with other legendaries at random.
+              Standard statics are replaced with other non-legendaries at random.</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="staticMode" id="staticRandom" value="random" onchange="onStaticModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Random (Completely)</div>
+            <div class="opt-desc">Every static encounter — legendary or not — is replaced with any Pokémon at random</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="staticMode" id="staticSimilar" value="similar_strength" onchange="onStaticModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Random (similar strength)</div>
+            <div class="opt-desc">Each static encounter is replaced with a Pokémon of similar Base Stat Total,
+              keeping the difficulty curve roughly intact</div>
+          </div>
+        </label>
+      </div>
+
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">
+        ℹ️ The Pokémon pool is controlled by the <strong>General</strong> tab.<br>
+        Only encounters using the <code>setwildbattle</code> script command are detected.
+        Most major static encounters in Emerald use object-event battles and will not be affected by this setting.
+      </p>
+    </div>
+
+    <!-- ── IN-GAME TRADES ── -->
+    <div class="panel" id="panel-trades">
+      <div class="section">
+        <div class="section-title">Pokémon</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
+          In-game trades are NPC exchanges built into the game — e.g. giving a Ralts and
+          receiving a Bagon. The parser detects trades from
+          <code>src/data/trades.h</code> (or equivalent trade data in the source tree).
+        </p>
+
+        <label class="option">
+          <input type="radio" name="tradeMode" id="tradeUnchanged" value="unchanged" checked onchange="onTradeModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Unchanged</div>
+            <div class="opt-desc">All NPC trades remain exactly as defined in the game</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="tradeMode" id="tradeGivenOnly" value="given_only" onchange="onTradeModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Randomize Given Pokémon Only</div>
+            <div class="opt-desc">The Pokémon you receive from the NPC is randomized; what you must give stays the same</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="tradeMode" id="tradeBoth" value="both" onchange="onTradeModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Randomize Both Requested &amp; Given Pokémon</div>
+            <div class="opt-desc">Both the Pokémon you give and the one you receive are randomized</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="section" id="tradeSubOptions" style="opacity:.35;pointer-events:none">
+        <div class="section-title">Sub-options</div>
+        <label class="option">
+          <input type="checkbox" id="tradeRandNicknames">
+          <div class="option-group">
+            <div class="opt-label">Randomize Nicknames</div>
+            <div class="opt-desc">The received Pokémon gets a new randomly generated nickname</div>
+          </div>
+        </label>
+        <label class="option">
+          <input type="checkbox" id="tradeRandOT">
+          <div class="option-group">
+            <div class="opt-label">Randomize OTs</div>
+            <div class="opt-desc">The received Pokémon gets a new randomly generated Original Trainer name</div>
+          </div>
+        </label>
+        <label class="option">
+          <input type="checkbox" id="tradeRandIVs">
+          <div class="option-group">
+            <div class="opt-label">Randomize IVs</div>
+            <div class="opt-desc">The received Pokémon's IVs are randomized</div>
+          </div>
+        </label>
+        <label class="option">
+          <input type="checkbox" id="tradeRandItems">
+          <div class="option-group">
+            <div class="opt-label">Randomize Held Items</div>
+            <div class="opt-desc">The received Pokémon holds a random item instead of the default</div>
+          </div>
+        </label>
+      </div>
+
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">
+        ℹ️ Levels are always preserved.
+        If 0 trades are found, check the log — trade data may be structured differently in this version of the source.
+      </p>
+    </div>
+
+    <!-- ── ITEMS ── -->
+    <div class="panel" id="panel-items">
+
+      <div class="section">
+        <div class="section-title">Field Items</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
+          Field items are items found in the overworld — visible Pokéball sprites on the ground
+          and hidden items found with the Itemfinder. Key items and HMs are never replaced.
+        </p>
+
+        <label class="option">
+          <input type="radio" name="fieldItemsMode" value="unchanged" checked onchange="onFieldItemsModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Unchanged</div>
+            <div class="opt-desc">All field items remain exactly as in the source</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="fieldItemsMode" value="shuffle" onchange="onFieldItemsModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Shuffle</div>
+            <div class="opt-desc">The existing set of items is shuffled among overworld locations — every item that was there still exists, just in a different spot</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="fieldItemsMode" value="random" onchange="onFieldItemsModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Random</div>
+            <div class="opt-desc">Each overworld item is independently replaced with a random item from the pool</div>
+          </div>
+        </label>
+
+        <label class="option">
+          <input type="radio" name="fieldItemsMode" value="random_even" onchange="onFieldItemsModeChange()">
+          <div class="option-group">
+            <div class="opt-label">Random (Evenly Distribute)</div>
+            <div class="opt-desc">Items are randomized so that every item in the pool appears as close to equally often as possible across all locations</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="section" id="fieldItemsSubSection" style="opacity:.35;pointer-events:none">
+        <div class="section-title">Sub-options</div>
+        <label class="option">
+          <input type="checkbox" id="fieldItemsBanBad" checked>
+          <div class="option-group">
+            <div class="opt-label">Ban Bad Items</div>
+            <div class="opt-desc">Exclude cheap / situational items (basic Potions, Antidotes, plain Repel, etc.) so all replacements are useful</div>
+          </div>
+        </label>
+      </div>
+
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">
+        ℹ️ The randomizer scans <code>data/maps/</code> script files for <code>finditem</code>
+        macros. If 0 items are found, check that your source has those script directories.
+      </p>
+
+      <!-- Starting Items -->
+      <div class="section" style="margin-top:24px">
+        <div class="section-title">Starting Items</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+          Configure what items are in your <strong>bag</strong> and <strong>PC</strong> at the start of a new game.
+          Only takes effect on a <strong>new game</strong> — not a continued save.
+        </p>
+        <label class="option" style="margin-bottom:14px">
+          <input type="checkbox" id="startItemsEnable" onchange="onStartItemsChange()">
+          <div class="option-group">
+            <div class="opt-label">Customize Starting Items</div>
+            <div class="opt-desc">When unchecked, the game starts with the vanilla empty inventory</div>
+          </div>
+        </label>
+        <div id="startItemsBody" style="display:none">
+
+          <!-- Bag -->
+          <div style="margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">
+              🎒 Bag
+            </div>
+            <div id="bagItemList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+            <button class="btn-secondary" style="font-size:12px;padding:6px 12px" onclick="addBagItem()">+ Add Bag Item</button>
+          </div>
+
+          <!-- PC -->
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">
+              💾 PC
+            </div>
+            <div id="pcItemList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+            <button class="btn-secondary" style="font-size:12px;padding:6px 12px" onclick="addPCItem()">+ Add PC Item</button>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="section" style="margin-top:24px">
+        <div class="section-title">Shop Items</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+          Patch specific shops to always stock key items at <strong>$10</strong> each,
+          making them available throughout your playthrough.
+        </p>
+
+        <label class="option">
+          <input type="checkbox" id="zeroGrinding">
+          <div class="option-group">
+            <div class="opt-label">Zero Grinding</div>
+            <div class="opt-desc">Adds Rare Candy to the <strong>Oldale Town Mart</strong> for $10 —
+              the first shop you can access, available from the very start of the game</div>
+          </div>
+        </label>
+
+        <label class="option" style="margin-top:10px">
+          <input type="checkbox" id="elite4Prep">
+          <div class="option-group">
+            <div class="opt-label">Elite 4 Prep</div>
+            <div class="opt-desc">Stocks the <strong>Pokémon League Mart</strong> with Rare Candy,
+              Full Restore, Max Elixir, and Max Revive — all for $10 each</div>
+          </div>
+        </label>
+      </div>
+
+    </div>
+
+    <!-- ── RANDOMIZE ── -->
+    <div class="panel" id="panel-randomize">
+
+      <div class="section">
+        <div class="section-title">Seed</div>
+        <div class="rand-seed-row">
+          <div class="field" style="max-width:200px">
+            <label>Random Seed</label>
+            <input type="text" id="seed" placeholder="Auto-generated" pattern="[0-9]*">
+          </div>
+          <button class="btn-dice" title="Roll a random seed" onclick="rollSeed()">🎲</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">
+          Leave blank to auto-generate. Same seed + same settings = same result every time.
+        </p>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Build</div>
+        <label class="option">
+          <input type="checkbox" id="buildRom" checked>
+          <div class="option-group">
+            <div class="opt-label">Build ROM after randomizing</div>
+            <div class="opt-desc">Run <code>make</code> in the output directory automatically.
+              Requires <strong>devkitARM</strong> to be installed and in your PATH</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="rand-action">
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn-secondary" style="font-size:12px;padding:8px 14px" onclick="saveSettings()">💾 Save Settings</button>
+          <button class="btn-secondary" style="font-size:12px;padding:8px 14px" onclick="saveSettingsAndSeed()">💾 Save Settings + Seed</button>
+          <button class="btn-secondary" style="font-size:12px;padding:8px 14px" onclick="loadSettingsFile()">📂 Load Settings</button>
+          <input type="file" id="settingsFileInput" accept=".json" style="display:none" onchange="onSettingsFile(this)">
+        </div>
+        <button class="btn-randomize" id="btn-randomize" onclick="startRandomize()">⚡ Randomize!</button>
+        <div class="rand-status">
+          <div class="spinner" id="spinner"></div>
+          <span class="status-text" id="statusText">Ready</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── HOW TO USE ── -->
+    <div class="panel" id="panel-howto">
+
+      <!-- ── Report a Bug ─────────────────────────────────────────────── -->
+      <div class="section">
+        <div class="section-title">🐛 Found a Bug?</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6">
+          Report issues or suggest features on
+          <a href="https://github.com/jsunaldo/PokemonLegacyRandomizer/issues/new?template=bug_report.yml" target="_blank" rel="noopener">GitHub</a>.
+          Please attach your <code>settings_used.json</code> (saved in your output folder next to the ROM) &mdash;
+          it reproduces your exact seed and settings, which makes bugs far easier to fix.
+        </p>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Requirements</div>
+        <div class="how-req-grid">
+          <div class="how-req-card">
+            <div class="req-icon">🛠️</div>
+            <div class="req-title">devkitARM</div>
+            <div class="req-desc">
+              Required to build the ROM after randomizing.<br>
+              <a href="https://devkitpro.org/wiki/Getting_Started" target="_blank">devkitpro.org → Getting Started</a>
+            </div>
+          </div>
+          <div class="how-req-card">
+            <div class="req-icon">📁</div>
+            <div class="req-title">Source Code</div>
+            <div class="req-desc">
+              <a href="https://github.com/cRz-Shadows/Pokemon_Emerald_Legacy" target="_blank">Pokemon Emerald Legacy</a>
+              source tree cloned to your Mac.
+            </div>
+          </div>
+        </div>
+        <div class="how-note info" style="margin-top:12px">
+          <strong>Platform note:</strong> This randomizer runs locally on your Mac and compiles the ROM
+          using devkitARM. Building a GBA ROM requires the ARM cross-compiler — see the
+          <a href="https://devkitpro.org/wiki/Getting_Started" target="_blank" style="color:var(--accent)">devkitPro Getting Started guide</a>.
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Steps</div>
+
+        <div class="how-step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>Clone the Emerald Legacy source</h3>
+            <p>Download the <a href="https://github.com/cRz-Shadows/Pokemon_Emerald_Legacy" target="_blank" style="color:var(--accent)">Pokemon Emerald Legacy</a>
+              repository and place it in a convenient folder.</p>
+            <p><code>git clone https://github.com/cRz-Shadows/Pokemon_Emerald_Legacy.git</code></p>
+          </div>
+        </div>
+
+        <div class="how-step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>Set the Source &amp; Output directories</h3>
+            <p>Use the <strong>Browse</strong> buttons at the top to set:
+              <ul style="margin-left:16px;margin-top:4px;font-size:13px;color:var(--muted)">
+                <li><strong style="color:var(--fg)">Source</strong> — the cloned repository folder</li>
+                <li><strong style="color:var(--fg)">Output</strong> — a new empty folder where the patched source will be written</li>
+              </ul>
+            </p>
+            <div class="how-note">Source and Output must be different directories — the source is never modified.</div>
+          </div>
+        </div>
+
+        <div class="how-step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>Configure and randomize</h3>
+            <p>Set your options on each tab, then click <strong>Randomize!</strong> on the Randomize tab.
+              The randomizer will copy the source, patch the relevant files, and (if Build ROM is checked)
+              compile a <code>.gba</code> file.</p>
+          </div>
+        </div>
+
+        <div class="how-step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h3>Load in an emulator</h3>
+            <p>Open the generated <code>EmeraldLegacy_Randomized_SEED.gba</code> in any GBA emulator
+              (mGBA, RetroArch, etc.).</p>
+            <div class="how-note info">
+              <strong>New game required:</strong> Starting items and PC Pokémon only appear when you
+              start a <em>new game</em>. Delete your save or use a fresh emulator state before testing.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Tips</div>
+        <ul class="how-tip-list">
+          <li><strong>Save your settings</strong> — use <em>Save Settings</em> on the Randomize tab to export a JSON file you can load back later.</li>
+          <li><strong>Reproducible runs</strong> — save both settings and seed with <em>Save Settings + Seed</em>. Sharing that file recreates the exact same randomized ROM.</li>
+          <li><strong>Full HM Compat</strong> — strongly recommended for randomized runs. Without it, a randomized party may be unable to learn required HMs.</li>
+          <li><strong>Easier Trade Evolutions</strong> — also recommended. Without it, trade-evolving Pokémon (Kadabra → Alakazam, etc.) can only be obtained pre-evolved.</li>
+          <li><strong>Wild data</strong> is stored in a single JSON file (<code>src/data/wild_encounters.json</code>), making randomization fast and reliable.</li>
+        </ul>
+      </div>
+
+    </div><!-- /panel-howto -->
+
+    <div class="panel" id="panel-donate">
+      <div class="section">
+        <div class="section-title">Support Development ⚡</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:16px;max-width:560px">
+          If you enjoy these randomizers, tips are hugely appreciated and help keep
+          development going. Donations go to my Bitcoin&nbsp;Lightning wallet — thank you!
+        </p>
+        <div style="display:flex;flex-direction:column;gap:12px;max-width:440px">
+          <div>
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Lightning Address</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input id="btcLnAddr" type="text" readonly value="salmoncobra1@primal.net"
+                     style="flex:1;font-family:monospace;font-size:14px" onclick="this.select()">
+              <button class="btn-secondary" style="padding:8px 12px;white-space:nowrap" onclick="copyDonate(this)">📋 Copy</button>
+            </div>
+          </div>
+          <a class="btn-secondary" style="text-align:center;padding:10px;text-decoration:none"
+             href="lightning:salmoncobra1@primal.net">Open in Lightning Wallet ⚡</a>
+          <div id="btcQr" style="align-self:center;background:#fff;padding:10px;border-radius:8px;display:none"></div>
+        </div>
+        <p style="color:var(--muted);font-size:12px;margin-top:16px">🙏 Every sat is appreciated.</p>
+      </div>
+    </div><!-- /panel-donate -->
+
+  </div><!-- /panels -->
+</div><!-- /main -->
+
+<!-- Log -->
+<div class="log-wrap">
+  <div class="log-toggle" onclick="toggleLog()">▲ Build Log</div>
+  <div id="log-box"></div>
+</div>
+
+<script>
+// ── Pokémon pool (Gen 1–3, 386 total) ───────────────────────────────────────
+const POKEMON = [
+  // Gen 1 (1–151)
+  {c:"SPECIES_BULBASAUR",n:"Bulbasaur"},{c:"SPECIES_IVYSAUR",n:"Ivysaur"},{c:"SPECIES_VENUSAUR",n:"Venusaur"},
+  {c:"SPECIES_CHARMANDER",n:"Charmander"},{c:"SPECIES_CHARMELEON",n:"Charmeleon"},{c:"SPECIES_CHARIZARD",n:"Charizard"},
+  {c:"SPECIES_SQUIRTLE",n:"Squirtle"},{c:"SPECIES_WARTORTLE",n:"Wartortle"},{c:"SPECIES_BLASTOISE",n:"Blastoise"},
+  {c:"SPECIES_CATERPIE",n:"Caterpie"},{c:"SPECIES_METAPOD",n:"Metapod"},{c:"SPECIES_BUTTERFREE",n:"Butterfree"},
+  {c:"SPECIES_WEEDLE",n:"Weedle"},{c:"SPECIES_KAKUNA",n:"Kakuna"},{c:"SPECIES_BEEDRILL",n:"Beedrill"},
+  {c:"SPECIES_PIDGEY",n:"Pidgey"},{c:"SPECIES_PIDGEOTTO",n:"Pidgeotto"},{c:"SPECIES_PIDGEOT",n:"Pidgeot"},
+  {c:"SPECIES_RATTATA",n:"Rattata"},{c:"SPECIES_RATICATE",n:"Raticate"},
+  {c:"SPECIES_SPEAROW",n:"Spearow"},{c:"SPECIES_FEAROW",n:"Fearow"},
+  {c:"SPECIES_EKANS",n:"Ekans"},{c:"SPECIES_ARBOK",n:"Arbok"},
+  {c:"SPECIES_PIKACHU",n:"Pikachu"},{c:"SPECIES_RAICHU",n:"Raichu"},
+  {c:"SPECIES_SANDSHREW",n:"Sandshrew"},{c:"SPECIES_SANDSLASH",n:"Sandslash"},
+  {c:"SPECIES_NIDORAN_F",n:"Nidoran♀"},{c:"SPECIES_NIDORINA",n:"Nidorina"},{c:"SPECIES_NIDOQUEEN",n:"Nidoqueen"},
+  {c:"SPECIES_NIDORAN_M",n:"Nidoran♂"},{c:"SPECIES_NIDORINO",n:"Nidorino"},{c:"SPECIES_NIDOKING",n:"Nidoking"},
+  {c:"SPECIES_CLEFAIRY",n:"Clefairy"},{c:"SPECIES_CLEFABLE",n:"Clefable"},
+  {c:"SPECIES_VULPIX",n:"Vulpix"},{c:"SPECIES_NINETALES",n:"Ninetales"},
+  {c:"SPECIES_JIGGLYPUFF",n:"Jigglypuff"},{c:"SPECIES_WIGGLYTUFF",n:"Wigglytuff"},
+  {c:"SPECIES_ZUBAT",n:"Zubat"},{c:"SPECIES_GOLBAT",n:"Golbat"},
+  {c:"SPECIES_ODDISH",n:"Oddish"},{c:"SPECIES_GLOOM",n:"Gloom"},{c:"SPECIES_VILEPLUME",n:"Vileplume"},
+  {c:"SPECIES_PARAS",n:"Paras"},{c:"SPECIES_PARASECT",n:"Parasect"},
+  {c:"SPECIES_VENONAT",n:"Venonat"},{c:"SPECIES_VENOMOTH",n:"Venomoth"},
+  {c:"SPECIES_DIGLETT",n:"Diglett"},{c:"SPECIES_DUGTRIO",n:"Dugtrio"},
+  {c:"SPECIES_MEOWTH",n:"Meowth"},{c:"SPECIES_PERSIAN",n:"Persian"},
+  {c:"SPECIES_PSYDUCK",n:"Psyduck"},{c:"SPECIES_GOLDUCK",n:"Golduck"},
+  {c:"SPECIES_MANKEY",n:"Mankey"},{c:"SPECIES_PRIMEAPE",n:"Primeape"},
+  {c:"SPECIES_GROWLITHE",n:"Growlithe"},{c:"SPECIES_ARCANINE",n:"Arcanine"},
+  {c:"SPECIES_POLIWAG",n:"Poliwag"},{c:"SPECIES_POLIWHIRL",n:"Poliwhirl"},{c:"SPECIES_POLIWRATH",n:"Poliwrath"},
+  {c:"SPECIES_ABRA",n:"Abra"},{c:"SPECIES_KADABRA",n:"Kadabra"},{c:"SPECIES_ALAKAZAM",n:"Alakazam"},
+  {c:"SPECIES_MACHOP",n:"Machop"},{c:"SPECIES_MACHOKE",n:"Machoke"},{c:"SPECIES_MACHAMP",n:"Machamp"},
+  {c:"SPECIES_BELLSPROUT",n:"Bellsprout"},{c:"SPECIES_WEEPINBELL",n:"Weepinbell"},{c:"SPECIES_VICTREEBEL",n:"Victreebel"},
+  {c:"SPECIES_TENTACOOL",n:"Tentacool"},{c:"SPECIES_TENTACRUEL",n:"Tentacruel"},
+  {c:"SPECIES_GEODUDE",n:"Geodude"},{c:"SPECIES_GRAVELER",n:"Graveler"},{c:"SPECIES_GOLEM",n:"Golem"},
+  {c:"SPECIES_PONYTA",n:"Ponyta"},{c:"SPECIES_RAPIDASH",n:"Rapidash"},
+  {c:"SPECIES_SLOWPOKE",n:"Slowpoke"},{c:"SPECIES_SLOWBRO",n:"Slowbro"},
+  {c:"SPECIES_MAGNEMITE",n:"Magnemite"},{c:"SPECIES_MAGNETON",n:"Magneton"},
+  {c:"SPECIES_FARFETCHD",n:"Farfetch'd"},
+  {c:"SPECIES_DODUO",n:"Doduo"},{c:"SPECIES_DODRIO",n:"Dodrio"},
+  {c:"SPECIES_SEEL",n:"Seel"},{c:"SPECIES_DEWGONG",n:"Dewgong"},
+  {c:"SPECIES_GRIMER",n:"Grimer"},{c:"SPECIES_MUK",n:"Muk"},
+  {c:"SPECIES_SHELLDER",n:"Shellder"},{c:"SPECIES_CLOYSTER",n:"Cloyster"},
+  {c:"SPECIES_GASTLY",n:"Gastly"},{c:"SPECIES_HAUNTER",n:"Haunter"},{c:"SPECIES_GENGAR",n:"Gengar"},
+  {c:"SPECIES_ONIX",n:"Onix"},
+  {c:"SPECIES_DROWZEE",n:"Drowzee"},{c:"SPECIES_HYPNO",n:"Hypno"},
+  {c:"SPECIES_KRABBY",n:"Krabby"},{c:"SPECIES_KINGLER",n:"Kingler"},
+  {c:"SPECIES_VOLTORB",n:"Voltorb"},{c:"SPECIES_ELECTRODE",n:"Electrode"},
+  {c:"SPECIES_EXEGGCUTE",n:"Exeggcute"},{c:"SPECIES_EXEGGUTOR",n:"Exeggutor"},
+  {c:"SPECIES_CUBONE",n:"Cubone"},{c:"SPECIES_MAROWAK",n:"Marowak"},
+  {c:"SPECIES_HITMONLEE",n:"Hitmonlee"},{c:"SPECIES_HITMONCHAN",n:"Hitmonchan"},
+  {c:"SPECIES_LICKITUNG",n:"Lickitung"},
+  {c:"SPECIES_KOFFING",n:"Koffing"},{c:"SPECIES_WEEZING",n:"Weezing"},
+  {c:"SPECIES_RHYHORN",n:"Rhyhorn"},{c:"SPECIES_RHYDON",n:"Rhydon"},
+  {c:"SPECIES_CHANSEY",n:"Chansey"},{c:"SPECIES_TANGELA",n:"Tangela"},{c:"SPECIES_KANGASKHAN",n:"Kangaskhan"},
+  {c:"SPECIES_HORSEA",n:"Horsea"},{c:"SPECIES_SEADRA",n:"Seadra"},
+  {c:"SPECIES_GOLDEEN",n:"Goldeen"},{c:"SPECIES_SEAKING",n:"Seaking"},
+  {c:"SPECIES_STARYU",n:"Staryu"},{c:"SPECIES_STARMIE",n:"Starmie"},
+  {c:"SPECIES_MR_MIME",n:"Mr. Mime"},{c:"SPECIES_SCYTHER",n:"Scyther"},
+  {c:"SPECIES_JYNX",n:"Jynx"},{c:"SPECIES_ELECTABUZZ",n:"Electabuzz"},{c:"SPECIES_MAGMAR",n:"Magmar"},
+  {c:"SPECIES_PINSIR",n:"Pinsir"},{c:"SPECIES_TAUROS",n:"Tauros"},
+  {c:"SPECIES_MAGIKARP",n:"Magikarp"},{c:"SPECIES_GYARADOS",n:"Gyarados"},
+  {c:"SPECIES_LAPRAS",n:"Lapras"},{c:"SPECIES_DITTO",n:"Ditto"},
+  {c:"SPECIES_EEVEE",n:"Eevee"},{c:"SPECIES_VAPOREON",n:"Vaporeon"},
+  {c:"SPECIES_JOLTEON",n:"Jolteon"},{c:"SPECIES_FLAREON",n:"Flareon"},
+  {c:"SPECIES_PORYGON",n:"Porygon"},
+  {c:"SPECIES_OMANYTE",n:"Omanyte"},{c:"SPECIES_OMASTAR",n:"Omastar"},
+  {c:"SPECIES_KABUTO",n:"Kabuto"},{c:"SPECIES_KABUTOPS",n:"Kabutops"},
+  {c:"SPECIES_AERODACTYL",n:"Aerodactyl"},{c:"SPECIES_SNORLAX",n:"Snorlax"},
+  {c:"SPECIES_ARTICUNO",n:"Articuno"},{c:"SPECIES_ZAPDOS",n:"Zapdos"},{c:"SPECIES_MOLTRES",n:"Moltres"},
+  {c:"SPECIES_DRATINI",n:"Dratini"},{c:"SPECIES_DRAGONAIR",n:"Dragonair"},{c:"SPECIES_DRAGONITE",n:"Dragonite"},
+  {c:"SPECIES_MEWTWO",n:"Mewtwo"},{c:"SPECIES_MEW",n:"Mew"},
+  // Gen 2 (152–251)
+  {c:"SPECIES_CHIKORITA",n:"Chikorita"},{c:"SPECIES_BAYLEEF",n:"Bayleef"},{c:"SPECIES_MEGANIUM",n:"Meganium"},
+  {c:"SPECIES_CYNDAQUIL",n:"Cyndaquil"},{c:"SPECIES_QUILAVA",n:"Quilava"},{c:"SPECIES_TYPHLOSION",n:"Typhlosion"},
+  {c:"SPECIES_TOTODILE",n:"Totodile"},{c:"SPECIES_CROCONAW",n:"Croconaw"},{c:"SPECIES_FERALIGATR",n:"Feraligatr"},
+  {c:"SPECIES_SENTRET",n:"Sentret"},{c:"SPECIES_FURRET",n:"Furret"},
+  {c:"SPECIES_HOOTHOOT",n:"Hoothoot"},{c:"SPECIES_NOCTOWL",n:"Noctowl"},
+  {c:"SPECIES_LEDYBA",n:"Ledyba"},{c:"SPECIES_LEDIAN",n:"Ledian"},
+  {c:"SPECIES_SPINARAK",n:"Spinarak"},{c:"SPECIES_ARIADOS",n:"Ariados"},
+  {c:"SPECIES_CROBAT",n:"Crobat"},
+  {c:"SPECIES_CHINCHOU",n:"Chinchou"},{c:"SPECIES_LANTURN",n:"Lanturn"},
+  {c:"SPECIES_PICHU",n:"Pichu"},{c:"SPECIES_CLEFFA",n:"Cleffa"},{c:"SPECIES_IGGLYBUFF",n:"Igglybuff"},
+  {c:"SPECIES_TOGEPI",n:"Togepi"},{c:"SPECIES_TOGETIC",n:"Togetic"},
+  {c:"SPECIES_NATU",n:"Natu"},{c:"SPECIES_XATU",n:"Xatu"},
+  {c:"SPECIES_MAREEP",n:"Mareep"},{c:"SPECIES_FLAAFFY",n:"Flaaffy"},{c:"SPECIES_AMPHAROS",n:"Ampharos"},
+  {c:"SPECIES_BELLOSSOM",n:"Bellossom"},
+  {c:"SPECIES_MARILL",n:"Marill"},{c:"SPECIES_AZUMARILL",n:"Azumarill"},
+  {c:"SPECIES_SUDOWOODO",n:"Sudowoodo"},{c:"SPECIES_POLITOED",n:"Politoed"},
+  {c:"SPECIES_HOPPIP",n:"Hoppip"},{c:"SPECIES_SKIPLOOM",n:"Skiploom"},{c:"SPECIES_JUMPLUFF",n:"Jumpluff"},
+  {c:"SPECIES_AIPOM",n:"Aipom"},
+  {c:"SPECIES_SUNKERN",n:"Sunkern"},{c:"SPECIES_SUNFLORA",n:"Sunflora"},
+  {c:"SPECIES_YANMA",n:"Yanma"},
+  {c:"SPECIES_WOOPER",n:"Wooper"},{c:"SPECIES_QUAGSIRE",n:"Quagsire"},
+  {c:"SPECIES_ESPEON",n:"Espeon"},{c:"SPECIES_UMBREON",n:"Umbreon"},
+  {c:"SPECIES_MURKROW",n:"Murkrow"},{c:"SPECIES_SLOWKING",n:"Slowking"},
+  {c:"SPECIES_MISDREAVUS",n:"Misdreavus"},{c:"SPECIES_UNOWN",n:"Unown"},
+  {c:"SPECIES_WOBBUFFET",n:"Wobbuffet"},{c:"SPECIES_GIRAFARIG",n:"Girafarig"},
+  {c:"SPECIES_PINECO",n:"Pineco"},{c:"SPECIES_FORRETRESS",n:"Forretress"},
+  {c:"SPECIES_DUNSPARCE",n:"Dunsparce"},{c:"SPECIES_GLIGAR",n:"Gligar"},
+  {c:"SPECIES_STEELIX",n:"Steelix"},
+  {c:"SPECIES_SNUBBULL",n:"Snubbull"},{c:"SPECIES_GRANBULL",n:"Granbull"},
+  {c:"SPECIES_QWILFISH",n:"Qwilfish"},{c:"SPECIES_SCIZOR",n:"Scizor"},
+  {c:"SPECIES_SHUCKLE",n:"Shuckle"},{c:"SPECIES_HERACROSS",n:"Heracross"},
+  {c:"SPECIES_SNEASEL",n:"Sneasel"},
+  {c:"SPECIES_TEDDIURSA",n:"Teddiursa"},{c:"SPECIES_URSARING",n:"Ursaring"},
+  {c:"SPECIES_SLUGMA",n:"Slugma"},{c:"SPECIES_MAGCARGO",n:"Magcargo"},
+  {c:"SPECIES_SWINUB",n:"Swinub"},{c:"SPECIES_PILOSWINE",n:"Piloswine"},
+  {c:"SPECIES_CORSOLA",n:"Corsola"},
+  {c:"SPECIES_REMORAID",n:"Remoraid"},{c:"SPECIES_OCTILLERY",n:"Octillery"},
+  {c:"SPECIES_DELIBIRD",n:"Delibird"},{c:"SPECIES_MANTINE",n:"Mantine"},
+  {c:"SPECIES_SKARMORY",n:"Skarmory"},
+  {c:"SPECIES_HOUNDOUR",n:"Houndour"},{c:"SPECIES_HOUNDOOM",n:"Houndoom"},
+  {c:"SPECIES_KINGDRA",n:"Kingdra"},
+  {c:"SPECIES_PHANPY",n:"Phanpy"},{c:"SPECIES_DONPHAN",n:"Donphan"},
+  {c:"SPECIES_PORYGON2",n:"Porygon2"},{c:"SPECIES_STANTLER",n:"Stantler"},
+  {c:"SPECIES_SMEARGLE",n:"Smeargle"},
+  {c:"SPECIES_TYROGUE",n:"Tyrogue"},{c:"SPECIES_HITMONTOP",n:"Hitmontop"},
+  {c:"SPECIES_SMOOCHUM",n:"Smoochum"},{c:"SPECIES_ELEKID",n:"Elekid"},{c:"SPECIES_MAGBY",n:"Magby"},
+  {c:"SPECIES_MILTANK",n:"Miltank"},{c:"SPECIES_BLISSEY",n:"Blissey"},
+  {c:"SPECIES_RAIKOU",n:"Raikou"},{c:"SPECIES_ENTEI",n:"Entei"},{c:"SPECIES_SUICUNE",n:"Suicune"},
+  {c:"SPECIES_LARVITAR",n:"Larvitar"},{c:"SPECIES_PUPITAR",n:"Pupitar"},{c:"SPECIES_TYRANITAR",n:"Tyranitar"},
+  {c:"SPECIES_LUGIA",n:"Lugia"},{c:"SPECIES_HO_OH",n:"Ho-Oh"},{c:"SPECIES_CELEBI",n:"Celebi"},
+  // Gen 3 (252–386)
+  {c:"SPECIES_TREECKO",n:"Treecko"},{c:"SPECIES_GROVYLE",n:"Grovyle"},{c:"SPECIES_SCEPTILE",n:"Sceptile"},
+  {c:"SPECIES_TORCHIC",n:"Torchic"},{c:"SPECIES_COMBUSKEN",n:"Combusken"},{c:"SPECIES_BLAZIKEN",n:"Blaziken"},
+  {c:"SPECIES_MUDKIP",n:"Mudkip"},{c:"SPECIES_MARSHTOMP",n:"Marshtomp"},{c:"SPECIES_SWAMPERT",n:"Swampert"},
+  {c:"SPECIES_POOCHYENA",n:"Poochyena"},{c:"SPECIES_MIGHTYENA",n:"Mightyena"},
+  {c:"SPECIES_ZIGZAGOON",n:"Zigzagoon"},{c:"SPECIES_LINOONE",n:"Linoone"},
+  {c:"SPECIES_WURMPLE",n:"Wurmple"},{c:"SPECIES_SILCOON",n:"Silcoon"},
+  {c:"SPECIES_BEAUTIFLY",n:"Beautifly"},{c:"SPECIES_CASCOON",n:"Cascoon"},{c:"SPECIES_DUSTOX",n:"Dustox"},
+  {c:"SPECIES_LOTAD",n:"Lotad"},{c:"SPECIES_LOMBRE",n:"Lombre"},{c:"SPECIES_LUDICOLO",n:"Ludicolo"},
+  {c:"SPECIES_SEEDOT",n:"Seedot"},{c:"SPECIES_NUZLEAF",n:"Nuzleaf"},{c:"SPECIES_SHIFTRY",n:"Shiftry"},
+  {c:"SPECIES_TAILLOW",n:"Taillow"},{c:"SPECIES_SWELLOW",n:"Swellow"},
+  {c:"SPECIES_WINGULL",n:"Wingull"},{c:"SPECIES_PELIPPER",n:"Pelipper"},
+  {c:"SPECIES_RALTS",n:"Ralts"},{c:"SPECIES_KIRLIA",n:"Kirlia"},{c:"SPECIES_GARDEVOIR",n:"Gardevoir"},
+  {c:"SPECIES_SURSKIT",n:"Surskit"},{c:"SPECIES_MASQUERAIN",n:"Masquerain"},
+  {c:"SPECIES_SHROOMISH",n:"Shroomish"},{c:"SPECIES_BRELOOM",n:"Breloom"},
+  {c:"SPECIES_SLAKOTH",n:"Slakoth"},{c:"SPECIES_VIGOROTH",n:"Vigoroth"},{c:"SPECIES_SLAKING",n:"Slaking"},
+  {c:"SPECIES_NINCADA",n:"Nincada"},{c:"SPECIES_NINJASK",n:"Ninjask"},{c:"SPECIES_SHEDINJA",n:"Shedinja"},
+  {c:"SPECIES_WHISMUR",n:"Whismur"},{c:"SPECIES_LOUDRED",n:"Loudred"},{c:"SPECIES_EXPLOUD",n:"Exploud"},
+  {c:"SPECIES_MAKUHITA",n:"Makuhita"},{c:"SPECIES_HARIYAMA",n:"Hariyama"},
+  {c:"SPECIES_AZURILL",n:"Azurill"},{c:"SPECIES_NOSEPASS",n:"Nosepass"},
+  {c:"SPECIES_SKITTY",n:"Skitty"},{c:"SPECIES_DELCATTY",n:"Delcatty"},
+  {c:"SPECIES_SABLEYE",n:"Sableye"},{c:"SPECIES_MAWILE",n:"Mawile"},
+  {c:"SPECIES_ARON",n:"Aron"},{c:"SPECIES_LAIRON",n:"Lairon"},{c:"SPECIES_AGGRON",n:"Aggron"},
+  {c:"SPECIES_MEDITITE",n:"Meditite"},{c:"SPECIES_MEDICHAM",n:"Medicham"},
+  {c:"SPECIES_ELECTRIKE",n:"Electrike"},{c:"SPECIES_MANECTRIC",n:"Manectric"},
+  {c:"SPECIES_PLUSLE",n:"Plusle"},{c:"SPECIES_MINUN",n:"Minun"},
+  {c:"SPECIES_VOLBEAT",n:"Volbeat"},{c:"SPECIES_ILLUMISE",n:"Illumise"},
+  {c:"SPECIES_ROSELIA",n:"Roselia"},
+  {c:"SPECIES_GULPIN",n:"Gulpin"},{c:"SPECIES_SWALOT",n:"Swalot"},
+  {c:"SPECIES_CARVANHA",n:"Carvanha"},{c:"SPECIES_SHARPEDO",n:"Sharpedo"},
+  {c:"SPECIES_WAILMER",n:"Wailmer"},{c:"SPECIES_WAILORD",n:"Wailord"},
+  {c:"SPECIES_NUMEL",n:"Numel"},{c:"SPECIES_CAMERUPT",n:"Camerupt"},
+  {c:"SPECIES_TORKOAL",n:"Torkoal"},
+  {c:"SPECIES_SPOINK",n:"Spoink"},{c:"SPECIES_GRUMPIG",n:"Grumpig"},
+  {c:"SPECIES_SPINDA",n:"Spinda"},
+  {c:"SPECIES_TRAPINCH",n:"Trapinch"},{c:"SPECIES_VIBRAVA",n:"Vibrava"},{c:"SPECIES_FLYGON",n:"Flygon"},
+  {c:"SPECIES_CACNEA",n:"Cacnea"},{c:"SPECIES_CACTURNE",n:"Cacturne"},
+  {c:"SPECIES_SWABLU",n:"Swablu"},{c:"SPECIES_ALTARIA",n:"Altaria"},
+  {c:"SPECIES_ZANGOOSE",n:"Zangoose"},{c:"SPECIES_SEVIPER",n:"Seviper"},
+  {c:"SPECIES_LUNATONE",n:"Lunatone"},{c:"SPECIES_SOLROCK",n:"Solrock"},
+  {c:"SPECIES_BARBOACH",n:"Barboach"},{c:"SPECIES_WHISCASH",n:"Whiscash"},
+  {c:"SPECIES_CORPHISH",n:"Corphish"},{c:"SPECIES_CRAWDAUNT",n:"Crawdaunt"},
+  {c:"SPECIES_BALTOY",n:"Baltoy"},{c:"SPECIES_CLAYDOL",n:"Claydol"},
+  {c:"SPECIES_LILEEP",n:"Lileep"},{c:"SPECIES_CRADILY",n:"Cradily"},
+  {c:"SPECIES_ANORITH",n:"Anorith"},{c:"SPECIES_ARMALDO",n:"Armaldo"},
+  {c:"SPECIES_FEEBAS",n:"Feebas"},{c:"SPECIES_MILOTIC",n:"Milotic"},
+  {c:"SPECIES_CASTFORM",n:"Castform"},{c:"SPECIES_KECLEON",n:"Kecleon"},
+  {c:"SPECIES_SHUPPET",n:"Shuppet"},{c:"SPECIES_BANETTE",n:"Banette"},
+  {c:"SPECIES_DUSKULL",n:"Duskull"},{c:"SPECIES_DUSCLOPS",n:"Dusclops"},
+  {c:"SPECIES_TROPIUS",n:"Tropius"},{c:"SPECIES_CHIMECHO",n:"Chimecho"},
+  {c:"SPECIES_ABSOL",n:"Absol"},{c:"SPECIES_WYNAUT",n:"Wynaut"},
+  {c:"SPECIES_SNORUNT",n:"Snorunt"},{c:"SPECIES_GLALIE",n:"Glalie"},
+  {c:"SPECIES_SPHEAL",n:"Spheal"},{c:"SPECIES_SEALEO",n:"Sealeo"},{c:"SPECIES_WALREIN",n:"Walrein"},
+  {c:"SPECIES_CLAMPERL",n:"Clamperl"},{c:"SPECIES_HUNTAIL",n:"Huntail"},{c:"SPECIES_GOREBYSS",n:"Gorebyss"},
+  {c:"SPECIES_RELICANTH",n:"Relicanth"},{c:"SPECIES_LUVDISC",n:"Luvdisc"},
+  {c:"SPECIES_BAGON",n:"Bagon"},{c:"SPECIES_SHELGON",n:"Shelgon"},{c:"SPECIES_SALAMENCE",n:"Salamence"},
+  {c:"SPECIES_BELDUM",n:"Beldum"},{c:"SPECIES_METANG",n:"Metang"},{c:"SPECIES_METAGROSS",n:"Metagross"},
+  {c:"SPECIES_REGIROCK",n:"Regirock"},{c:"SPECIES_REGICE",n:"Regice"},{c:"SPECIES_REGISTEEL",n:"Registeel"},
+  {c:"SPECIES_LATIAS",n:"Latias"},{c:"SPECIES_LATIOS",n:"Latios"},
+  {c:"SPECIES_KYOGRE",n:"Kyogre"},{c:"SPECIES_GROUDON",n:"Groudon"},{c:"SPECIES_RAYQUAZA",n:"Rayquaza"},
+  {c:"SPECIES_JIRACHI",n:"Jirachi"},{c:"SPECIES_DEOXYS",n:"Deoxys"},
+];
+
+// Starter defaults
+const STARTER_DEFAULTS = ["SPECIES_TREECKO","SPECIES_TORCHIC","SPECIES_MUDKIP"];
+
+// Item pool for starting items (loaded from server or fallback)
+let ITEM_POOL = [];
+
+// ── Move pool (Gen 3, all 354 moves) ────────────────────────────────────────
+const MOVE_POOL = [
+  {c:'MOVE_POUND',n:'Pound'},{c:'MOVE_KARATE_CHOP',n:'Karate Chop'},{c:'MOVE_DOUBLE_SLAP',n:'Double Slap'},
+  {c:'MOVE_COMET_PUNCH',n:'Comet Punch'},{c:'MOVE_MEGA_PUNCH',n:'Mega Punch'},{c:'MOVE_PAY_DAY',n:'Pay Day'},
+  {c:'MOVE_FIRE_PUNCH',n:'Fire Punch'},{c:'MOVE_ICE_PUNCH',n:'Ice Punch'},{c:'MOVE_THUNDER_PUNCH',n:'Thunder Punch'},
+  {c:'MOVE_SCRATCH',n:'Scratch'},{c:'MOVE_VICE_GRIP',n:'Vise Grip'},{c:'MOVE_GUILLOTINE',n:'Guillotine'},
+  {c:'MOVE_RAZOR_WIND',n:'Razor Wind'},{c:'MOVE_SWORDS_DANCE',n:'Swords Dance'},{c:'MOVE_CUT',n:'Cut'},
+  {c:'MOVE_GUST',n:'Gust'},{c:'MOVE_WING_ATTACK',n:'Wing Attack'},{c:'MOVE_WHIRLWIND',n:'Whirlwind'},
+  {c:'MOVE_FLY',n:'Fly'},{c:'MOVE_BIND',n:'Bind'},{c:'MOVE_SLAM',n:'Slam'},{c:'MOVE_VINE_WHIP',n:'Vine Whip'},
+  {c:'MOVE_STOMP',n:'Stomp'},{c:'MOVE_DOUBLE_KICK',n:'Double Kick'},{c:'MOVE_MEGA_KICK',n:'Mega Kick'},
+  {c:'MOVE_JUMP_KICK',n:'Jump Kick'},{c:'MOVE_ROLLING_KICK',n:'Rolling Kick'},{c:'MOVE_SAND_ATTACK',n:'Sand Attack'},
+  {c:'MOVE_HEADBUTT',n:'Headbutt'},{c:'MOVE_HORN_ATTACK',n:'Horn Attack'},{c:'MOVE_FURY_ATTACK',n:'Fury Attack'},
+  {c:'MOVE_HORN_DRILL',n:'Horn Drill'},{c:'MOVE_TACKLE',n:'Tackle'},{c:'MOVE_BODY_SLAM',n:'Body Slam'},
+  {c:'MOVE_WRAP',n:'Wrap'},{c:'MOVE_TAKE_DOWN',n:'Take Down'},{c:'MOVE_THRASH',n:'Thrash'},
+  {c:'MOVE_DOUBLE_EDGE',n:'Double-Edge'},{c:'MOVE_TAIL_WHIP',n:'Tail Whip'},{c:'MOVE_POISON_STING',n:'Poison Sting'},
+  {c:'MOVE_TWINEEDLE',n:'Twineedle'},{c:'MOVE_PIN_MISSILE',n:'Pin Missile'},{c:'MOVE_LEER',n:'Leer'},
+  {c:'MOVE_BITE',n:'Bite'},{c:'MOVE_GROWL',n:'Growl'},{c:'MOVE_ROAR',n:'Roar'},{c:'MOVE_SING',n:'Sing'},
+  {c:'MOVE_SUPERSONIC',n:'Supersonic'},{c:'MOVE_SONIC_BOOM',n:'Sonic Boom'},{c:'MOVE_DISABLE',n:'Disable'},
+  {c:'MOVE_ACID',n:'Acid'},{c:'MOVE_EMBER',n:'Ember'},{c:'MOVE_FLAMETHROWER',n:'Flamethrower'},
+  {c:'MOVE_MIST',n:'Mist'},{c:'MOVE_WATER_GUN',n:'Water Gun'},{c:'MOVE_HYDRO_PUMP',n:'Hydro Pump'},
+  {c:'MOVE_SURF',n:'Surf'},{c:'MOVE_ICE_BEAM',n:'Ice Beam'},{c:'MOVE_BLIZZARD',n:'Blizzard'},
+  {c:'MOVE_PSYBEAM',n:'Psybeam'},{c:'MOVE_BUBBLE_BEAM',n:'Bubblebeam'},{c:'MOVE_AURORA_BEAM',n:'Aurora Beam'},
+  {c:'MOVE_HYPER_BEAM',n:'Hyper Beam'},{c:'MOVE_PECK',n:'Peck'},{c:'MOVE_DRILL_PECK',n:'Drill Peck'},
+  {c:'MOVE_SUBMISSION',n:'Submission'},{c:'MOVE_LOW_KICK',n:'Low Kick'},{c:'MOVE_COUNTER',n:'Counter'},
+  {c:'MOVE_SEISMIC_TOSS',n:'Seismic Toss'},{c:'MOVE_STRENGTH',n:'Strength'},{c:'MOVE_ABSORB',n:'Absorb'},
+  {c:'MOVE_MEGA_DRAIN',n:'Mega Drain'},{c:'MOVE_LEECH_SEED',n:'Leech Seed'},{c:'MOVE_GROWTH',n:'Growth'},
+  {c:'MOVE_RAZOR_LEAF',n:'Razor Leaf'},{c:'MOVE_SOLAR_BEAM',n:'SolarBeam'},{c:'MOVE_POISON_POWDER',n:'PoisonPowder'},
+  {c:'MOVE_STUN_SPORE',n:'Stun Spore'},{c:'MOVE_SLEEP_POWDER',n:'Sleep Powder'},{c:'MOVE_PETAL_DANCE',n:'Petal Dance'},
+  {c:'MOVE_STRING_SHOT',n:'String Shot'},{c:'MOVE_DRAGON_RAGE',n:'Dragon Rage'},{c:'MOVE_FIRE_SPIN',n:'Fire Spin'},
+  {c:'MOVE_THUNDER_SHOCK',n:'ThunderShock'},{c:'MOVE_THUNDERBOLT',n:'Thunderbolt'},{c:'MOVE_THUNDER_WAVE',n:'Thunder Wave'},
+  {c:'MOVE_THUNDER',n:'Thunder'},{c:'MOVE_ROCK_THROW',n:'Rock Throw'},{c:'MOVE_EARTHQUAKE',n:'Earthquake'},
+  {c:'MOVE_FISSURE',n:'Fissure'},{c:'MOVE_DIG',n:'Dig'},{c:'MOVE_TOXIC',n:'Toxic'},
+  {c:'MOVE_CONFUSION',n:'Confusion'},{c:'MOVE_PSYCHIC',n:'Psychic'},{c:'MOVE_HYPNOSIS',n:'Hypnosis'},
+  {c:'MOVE_MEDITATE',n:'Meditate'},{c:'MOVE_AGILITY',n:'Agility'},{c:'MOVE_QUICK_ATTACK',n:'Quick Attack'},
+  {c:'MOVE_RAGE',n:'Rage'},{c:'MOVE_TELEPORT',n:'Teleport'},{c:'MOVE_NIGHT_SHADE',n:'Night Shade'},
+  {c:'MOVE_MIMIC',n:'Mimic'},{c:'MOVE_SCREECH',n:'Screech'},{c:'MOVE_DOUBLE_TEAM',n:'Double Team'},
+  {c:'MOVE_RECOVER',n:'Recover'},{c:'MOVE_HARDEN',n:'Harden'},{c:'MOVE_MINIMIZE',n:'Minimize'},
+  {c:'MOVE_SMOKESCREEN',n:'Smokescreen'},{c:'MOVE_CONFUSE_RAY',n:'Confuse Ray'},{c:'MOVE_WITHDRAW',n:'Withdraw'},
+  {c:'MOVE_DEFENSE_CURL',n:'Defense Curl'},{c:'MOVE_BARRIER',n:'Barrier'},{c:'MOVE_LIGHT_SCREEN',n:'Light Screen'},
+  {c:'MOVE_HAZE',n:'Haze'},{c:'MOVE_REFLECT',n:'Reflect'},{c:'MOVE_FOCUS_ENERGY',n:'Focus Energy'},
+  {c:'MOVE_BIDE',n:'Bide'},{c:'MOVE_METRONOME',n:'Metronome'},{c:'MOVE_MIRROR_MOVE',n:'Mirror Move'},
+  {c:'MOVE_SELF_DESTRUCT',n:'Self-Destruct'},{c:'MOVE_EGG_BOMB',n:'Egg Bomb'},{c:'MOVE_LICK',n:'Lick'},
+  {c:'MOVE_SMOG',n:'Smog'},{c:'MOVE_SLUDGE',n:'Sludge'},{c:'MOVE_BONE_CLUB',n:'Bone Club'},
+  {c:'MOVE_FIRE_BLAST',n:'Fire Blast'},{c:'MOVE_WATERFALL',n:'Waterfall'},{c:'MOVE_CLAMP',n:'Clamp'},
+  {c:'MOVE_SWIFT',n:'Swift'},{c:'MOVE_SKULL_BASH',n:'Skull Bash'},{c:'MOVE_SPIKE_CANNON',n:'Spike Cannon'},
+  {c:'MOVE_CONSTRICT',n:'Constrict'},{c:'MOVE_AMNESIA',n:'Amnesia'},{c:'MOVE_KINESIS',n:'Kinesis'},
+  {c:'MOVE_SOFT_BOILED',n:'Soft-Boiled'},{c:'MOVE_HI_JUMP_KICK',n:'Hi Jump Kick'},{c:'MOVE_GLARE',n:'Glare'},
+  {c:'MOVE_DREAM_EATER',n:'Dream Eater'},{c:'MOVE_POISON_GAS',n:'Poison Gas'},{c:'MOVE_BARRAGE',n:'Barrage'},
+  {c:'MOVE_LEECH_LIFE',n:'Leech Life'},{c:'MOVE_LOVELY_KISS',n:'Lovely Kiss'},{c:'MOVE_SKY_ATTACK',n:'Sky Attack'},
+  {c:'MOVE_TRANSFORM',n:'Transform'},{c:'MOVE_BUBBLE',n:'Bubble'},{c:'MOVE_DIZZY_PUNCH',n:'Dizzy Punch'},
+  {c:'MOVE_SPORE',n:'Spore'},{c:'MOVE_FLASH',n:'Flash'},{c:'MOVE_PSYWAVE',n:'Psywave'},
+  {c:'MOVE_SPLASH',n:'Splash'},{c:'MOVE_ACID_ARMOR',n:'Acid Armor'},{c:'MOVE_CRABHAMMER',n:'Crabhammer'},
+  {c:'MOVE_EXPLOSION',n:'Explosion'},{c:'MOVE_FURY_SWIPES',n:'Fury Swipes'},{c:'MOVE_BONEMERANG',n:'Bonemerang'},
+  {c:'MOVE_REST',n:'Rest'},{c:'MOVE_ROCK_SLIDE',n:'Rock Slide'},{c:'MOVE_HYPER_FANG',n:'Hyper Fang'},
+  {c:'MOVE_SHARPEN',n:'Sharpen'},{c:'MOVE_CONVERSION',n:'Conversion'},{c:'MOVE_TRI_ATTACK',n:'Tri Attack'},
+  {c:'MOVE_SUPER_FANG',n:'Super Fang'},{c:'MOVE_SLASH',n:'Slash'},{c:'MOVE_SUBSTITUTE',n:'Substitute'},
+  {c:'MOVE_STRUGGLE',n:'Struggle'},{c:'MOVE_SKETCH',n:'Sketch'},{c:'MOVE_TRIPLE_KICK',n:'Triple Kick'},
+  {c:'MOVE_THIEF',n:'Thief'},{c:'MOVE_SPIDER_WEB',n:'Spider Web'},{c:'MOVE_MIND_READER',n:'Mind Reader'},
+  {c:'MOVE_NIGHTMARE',n:'Nightmare'},{c:'MOVE_FLAME_WHEEL',n:'Flame Wheel'},{c:'MOVE_SNORE',n:'Snore'},
+  {c:'MOVE_CURSE',n:'Curse'},{c:'MOVE_FLAIL',n:'Flail'},{c:'MOVE_CONVERSION_2',n:'Conversion 2'},
+  {c:'MOVE_AEROBLAST',n:'Aeroblast'},{c:'MOVE_COTTON_SPORE',n:'Cotton Spore'},{c:'MOVE_REVERSAL',n:'Reversal'},
+  {c:'MOVE_SPITE',n:'Spite'},{c:'MOVE_POWDER_SNOW',n:'Powder Snow'},{c:'MOVE_PROTECT',n:'Protect'},
+  {c:'MOVE_MACH_PUNCH',n:'Mach Punch'},{c:'MOVE_SCARY_FACE',n:'Scary Face'},{c:'MOVE_FAINT_ATTACK',n:'Faint Attack'},
+  {c:'MOVE_SWEET_KISS',n:'Sweet Kiss'},{c:'MOVE_BELLY_DRUM',n:'Belly Drum'},{c:'MOVE_SLUDGE_BOMB',n:'Sludge Bomb'},
+  {c:'MOVE_MUD_SLAP',n:'Mud-Slap'},{c:'MOVE_OCTAZOOKA',n:'Octazooka'},{c:'MOVE_SPIKES',n:'Spikes'},
+  {c:'MOVE_ZAP_CANNON',n:'Zap Cannon'},{c:'MOVE_FORESIGHT',n:'Foresight'},{c:'MOVE_DESTINY_BOND',n:'Destiny Bond'},
+  {c:'MOVE_PERISH_SONG',n:'Perish Song'},{c:'MOVE_ICY_WIND',n:'Icy Wind'},{c:'MOVE_DETECT',n:'Detect'},
+  {c:'MOVE_BONE_RUSH',n:'Bone Rush'},{c:'MOVE_LOCK_ON',n:'Lock-On'},{c:'MOVE_OUTRAGE',n:'Outrage'},
+  {c:'MOVE_SANDSTORM',n:'Sandstorm'},{c:'MOVE_GIGA_DRAIN',n:'Giga Drain'},{c:'MOVE_ENDURE',n:'Endure'},
+  {c:'MOVE_CHARM',n:'Charm'},{c:'MOVE_ROLLOUT',n:'Rollout'},{c:'MOVE_FALSE_SWIPE',n:'False Swipe'},
+  {c:'MOVE_SWAGGER',n:'Swagger'},{c:'MOVE_MILK_DRINK',n:'Milk Drink'},{c:'MOVE_SPARK',n:'Spark'},
+  {c:'MOVE_FURY_CUTTER',n:'Fury Cutter'},{c:'MOVE_STEEL_WING',n:'Steel Wing'},{c:'MOVE_MEAN_LOOK',n:'Mean Look'},
+  {c:'MOVE_ATTRACT',n:'Attract'},{c:'MOVE_SLEEP_TALK',n:'Sleep Talk'},{c:'MOVE_HEAL_BELL',n:'Heal Bell'},
+  {c:'MOVE_RETURN',n:'Return'},{c:'MOVE_PRESENT',n:'Present'},{c:'MOVE_FRUSTRATION',n:'Frustration'},
+  {c:'MOVE_SAFEGUARD',n:'Safeguard'},{c:'MOVE_PAIN_SPLIT',n:'Pain Split'},{c:'MOVE_SACRED_FIRE',n:'Sacred Fire'},
+  {c:'MOVE_MAGNITUDE',n:'Magnitude'},{c:'MOVE_DYNAMIC_PUNCH',n:'DynamicPunch'},{c:'MOVE_MEGAHORN',n:'Megahorn'},
+  {c:'MOVE_DRAGON_BREATH',n:'DragonBreath'},{c:'MOVE_BATON_PASS',n:'Baton Pass'},{c:'MOVE_ENCORE',n:'Encore'},
+  {c:'MOVE_PURSUIT',n:'Pursuit'},{c:'MOVE_RAPID_SPIN',n:'Rapid Spin'},{c:'MOVE_SWEET_SCENT',n:'Sweet Scent'},
+  {c:'MOVE_IRON_TAIL',n:'Iron Tail'},{c:'MOVE_METAL_CLAW',n:'Metal Claw'},{c:'MOVE_VITAL_THROW',n:'Vital Throw'},
+  {c:'MOVE_MORNING_SUN',n:'Morning Sun'},{c:'MOVE_SYNTHESIS',n:'Synthesis'},{c:'MOVE_MOONLIGHT',n:'Moonlight'},
+  {c:'MOVE_HIDDEN_POWER',n:'Hidden Power'},{c:'MOVE_CROSS_CHOP',n:'Cross Chop'},{c:'MOVE_TWISTER',n:'Twister'},
+  {c:'MOVE_RAIN_DANCE',n:'Rain Dance'},{c:'MOVE_SUNNY_DAY',n:'Sunny Day'},{c:'MOVE_CRUNCH',n:'Crunch'},
+  {c:'MOVE_MIRROR_COAT',n:'Mirror Coat'},{c:'MOVE_PSYCH_UP',n:'Psych Up'},{c:'MOVE_EXTREME_SPEED',n:'ExtremeSpeed'},
+  {c:'MOVE_ANCIENT_POWER',n:'AncientPower'},{c:'MOVE_SHADOW_BALL',n:'Shadow Ball'},{c:'MOVE_FUTURE_SIGHT',n:'Future Sight'},
+  {c:'MOVE_ROCK_SMASH',n:'Rock Smash'},{c:'MOVE_WHIRLPOOL',n:'Whirlpool'},{c:'MOVE_BEAT_UP',n:'Beat Up'},
+  {c:'MOVE_FAKE_OUT',n:'Fake Out'},{c:'MOVE_UPROAR',n:'Uproar'},{c:'MOVE_STOCKPILE',n:'Stockpile'},
+  {c:'MOVE_SPIT_UP',n:'Spit Up'},{c:'MOVE_SWALLOW',n:'Swallow'},{c:'MOVE_HEAT_WAVE',n:'Heat Wave'},
+  {c:'MOVE_HAIL',n:'Hail'},{c:'MOVE_TORMENT',n:'Torment'},{c:'MOVE_FLATTER',n:'Flatter'},
+  {c:'MOVE_WILL_O_WISP',n:'Will-O-Wisp'},{c:'MOVE_MEMENTO',n:'Memento'},{c:'MOVE_FACADE',n:'Facade'},
+  {c:'MOVE_FOCUS_PUNCH',n:'Focus Punch'},{c:'MOVE_SMELLING_SALT',n:'Smelling Salts'},{c:'MOVE_FOLLOW_ME',n:'Follow Me'},
+  {c:'MOVE_NATURE_POWER',n:'Nature Power'},{c:'MOVE_CHARGE',n:'Charge'},{c:'MOVE_TAUNT',n:'Taunt'},
+  {c:'MOVE_HELPING_HAND',n:'Helping Hand'},{c:'MOVE_TRICK',n:'Trick'},{c:'MOVE_ROLE_PLAY',n:'Role Play'},
+  {c:'MOVE_WISH',n:'Wish'},{c:'MOVE_ASSIST',n:'Assist'},{c:'MOVE_INGRAIN',n:'Ingrain'},
+  {c:'MOVE_SUPERPOWER',n:'Superpower'},{c:'MOVE_MAGIC_COAT',n:'Magic Coat'},{c:'MOVE_RECYCLE',n:'Recycle'},
+  {c:'MOVE_REVENGE',n:'Revenge'},{c:'MOVE_BRICK_BREAK',n:'Brick Break'},{c:'MOVE_YAWN',n:'Yawn'},
+  {c:'MOVE_KNOCK_OFF',n:'Knock Off'},{c:'MOVE_ENDEAVOR',n:'Endeavor'},{c:'MOVE_ERUPTION',n:'Eruption'},
+  {c:'MOVE_SKILL_SWAP',n:'Skill Swap'},{c:'MOVE_IMPRISON',n:'Imprison'},{c:'MOVE_REFRESH',n:'Refresh'},
+  {c:'MOVE_GRUDGE',n:'Grudge'},{c:'MOVE_SNATCH',n:'Snatch'},{c:'MOVE_SECRET_POWER',n:'Secret Power'},
+  {c:'MOVE_DIVE',n:'Dive'},{c:'MOVE_ARM_THRUST',n:'Arm Thrust'},{c:'MOVE_CAMOUFLAGE',n:'Camouflage'},
+  {c:'MOVE_TAIL_GLOW',n:'Tail Glow'},{c:'MOVE_LUSTER_PURGE',n:'Luster Purge'},{c:'MOVE_MIST_BALL',n:'Mist Ball'},
+  {c:'MOVE_FEATHER_DANCE',n:'FeatherDance'},{c:'MOVE_TEETER_DANCE',n:'Teeter Dance'},{c:'MOVE_BLAZE_KICK',n:'Blaze Kick'},
+  {c:'MOVE_MUD_SPORT',n:'Mud Sport'},{c:'MOVE_ICE_BALL',n:'Ice Ball'},{c:'MOVE_NEEDLE_ARM',n:'Needle Arm'},
+  {c:'MOVE_SLACK_OFF',n:'Slack Off'},{c:'MOVE_HYPER_VOICE',n:'Hyper Voice'},{c:'MOVE_POISON_FANG',n:'Poison Fang'},
+  {c:'MOVE_CRUSH_CLAW',n:'Crush Claw'},{c:'MOVE_BLAST_BURN',n:'Blast Burn'},{c:'MOVE_HYDRO_CANNON',n:'Hydro Cannon'},
+  {c:'MOVE_METEOR_MASH',n:'Meteor Mash'},{c:'MOVE_ASTONISH',n:'Astonish'},{c:'MOVE_WEATHER_BALL',n:'Weather Ball'},
+  {c:'MOVE_AROMATHERAPY',n:'Aromatherapy'},{c:'MOVE_FAKE_TEARS',n:'Fake Tears'},{c:'MOVE_AIR_CUTTER',n:'Air Cutter'},
+  {c:'MOVE_OVERHEAT',n:'Overheat'},{c:'MOVE_ODOR_SLEUTH',n:'Odor Sleuth'},{c:'MOVE_ROCK_TOMB',n:'Rock Tomb'},
+  {c:'MOVE_SILVER_WIND',n:'Silver Wind'},{c:'MOVE_METAL_SOUND',n:'Metal Sound'},{c:'MOVE_GRASS_WHISTLE',n:'GrassWhistle'},
+  {c:'MOVE_TICKLE',n:'Tickle'},{c:'MOVE_COSMIC_POWER',n:'Cosmic Power'},{c:'MOVE_WATER_SPOUT',n:'Water Spout'},
+  {c:'MOVE_SIGNAL_BEAM',n:'Signal Beam'},{c:'MOVE_SHADOW_PUNCH',n:'Shadow Punch'},{c:'MOVE_EXTRASENSORY',n:'Extrasensory'},
+  {c:'MOVE_SKY_UPPERCUT',n:'Sky Uppercut'},{c:'MOVE_SAND_TOMB',n:'Sand Tomb'},{c:'MOVE_SHEER_COLD',n:'Sheer Cold'},
+  {c:'MOVE_MUDDY_WATER',n:'Muddy Water'},{c:'MOVE_BULLET_SEED',n:'Bullet Seed'},{c:'MOVE_AERIAL_ACE',n:'Aerial Ace'},
+  {c:'MOVE_ICICLE_SPEAR',n:'Icicle Spear'},{c:'MOVE_IRON_DEFENSE',n:'Iron Defense'},{c:'MOVE_BLOCK',n:'Block'},
+  {c:'MOVE_HOWL',n:'Howl'},{c:'MOVE_DRAGON_CLAW',n:'Dragon Claw'},{c:'MOVE_FRENZY_PLANT',n:'Frenzy Plant'},
+  {c:'MOVE_BULK_UP',n:'Bulk Up'},{c:'MOVE_BOUNCE',n:'Bounce'},{c:'MOVE_MUD_SHOT',n:'Mud Shot'},
+  {c:'MOVE_POISON_TAIL',n:'Poison Tail'},{c:'MOVE_COVET',n:'Covet'},{c:'MOVE_VOLT_TACKLE',n:'Volt Tackle'},
+  {c:'MOVE_MAGICAL_LEAF',n:'Magical Leaf'},{c:'MOVE_WATER_SPORT',n:'Water Sport'},{c:'MOVE_CALM_MIND',n:'Calm Mind'},
+  {c:'MOVE_LEAF_BLADE',n:'Leaf Blade'},{c:'MOVE_DRAGON_DANCE',n:'Dragon Dance'},{c:'MOVE_ROCK_BLAST',n:'Rock Blast'},
+  {c:'MOVE_SHOCK_WAVE',n:'Shock Wave'},{c:'MOVE_WATER_PULSE',n:'Water Pulse'},{c:'MOVE_DOOM_DESIRE',n:'Doom Desire'},
+  {c:'MOVE_PSYCHO_BOOST',n:'Psycho Boost'},
+];
+
+// ── Combobox ────────────────────────────────────────────────────────────────
+let _cbState = {};  // id → { value, options }
+
+function makeCombobox(containerId, options, placeholder, onchange) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const id = containerId;
+  _cbState[id] = { value: null, options };
+
+  container.innerHTML = `
+    <div class="cb-wrap" id="${id}_wrap">
+      <input class="cb-input" id="${id}_input" placeholder="${placeholder||'Search...'}" autocomplete="off"
+        oninput="_cbFilter('${id}')" onfocus="_cbOpen('${id}')" onblur="_cbBlur('${id}')">
+      <div class="cb-dropdown" id="${id}_drop"></div>
+    </div>`;
+  container._cbOnchange = onchange || null;
+  _cbRender(id, '');
+}
+
+function _cbRender(id, filter) {
+  const state = _cbState[id];
+  const drop  = document.getElementById(id + '_drop');
+  if (!drop) return;
+  const fl = filter.toLowerCase();
+  const matches = state.options.filter(o => o.n.toLowerCase().includes(fl));
+  if (!matches.length) { drop.innerHTML = `<div class="cb-none">No results</div>`; return; }
+  drop.innerHTML = matches.slice(0, 200).map(o =>
+    `<div class="cb-opt${state.value===o.c?' active':''}" onmousedown="_cbSelect('${id}','${o.c}','${o.n.replace(/'/g,"\\'")}')">${o.n}</div>`
+  ).join('');
+}
+
+function _cbFilter(id) {
+  const inp = document.getElementById(id + '_input');
+  _cbOpen(id);
+  _cbRender(id, inp ? inp.value : '');
+}
+
+function _cbOpen(id) {
+  const drop = document.getElementById(id + '_drop');
+  if (drop) drop.classList.add('open');
+}
+
+function _cbBlur(id) {
+  setTimeout(() => {
+    const drop = document.getElementById(id + '_drop');
+    if (drop) drop.classList.remove('open');
+    // Validate: restore the display name for the selected value, or clear if nothing valid was chosen
+    const inp   = document.getElementById(id + '_input');
+    const state = _cbState[id];
+    if (!inp || !state) return;
+    if (state.value !== null && state.value !== undefined) {
+      const opt = state.options.find(o => o.c === state.value);
+      inp.value = opt ? opt.n : '';
+    } else {
+      inp.value = '';
+    }
+  }, 150);
+}
+
+function _cbSelect(id, constVal, name) {
+  _cbState[id].value = constVal;
+  const inp = document.getElementById(id + '_input');
+  if (inp) inp.value = name;
+  _cbRender(id, '');
+  const container = document.getElementById(id);
+  if (container && container._cbOnchange) container._cbOnchange(constVal);
+}
+
+function _cbGetValue(id) { return _cbState[id] ? _cbState[id].value : null; }
+function _cbSetValue(id, constVal) {
+  if (!_cbState[id]) return;
+  _cbState[id].value = constVal;
+  const opt = _cbState[id].options.find(o => o.c === constVal);
+  const inp = document.getElementById(id + '_input');
+  if (inp) inp.value = opt ? opt.n : '';
+  _cbRender(id, '');
+}
+
+// ── Tab switching ────────────────────────────────────────────────────────────
+function showTab(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const panel = document.getElementById('panel-' + name);
+  if (panel) panel.classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+// ── Browse ───────────────────────────────────────────────────────────────────
+async function browse(which) {
+  try {
+    const r = await fetch('/api/browse');
+    const d = await r.json();
+    if (d.path) {
+      if (which === 'src') {
+        document.getElementById('srcDir').value = d.path;
+        const out = document.getElementById('outDir');
+        if (!out.value) out.value = d.path.replace(/\/$/, '') + '_randomized';
+      } else {
+        document.getElementById('outDir').value = d.path;
+      }
+    }
+  } catch (e) { console.error(e); }
+}
+
+// ── Starter mode change ──────────────────────────────────────────────────────
+function onStarterModeChange() {
+  const mode = document.querySelector('input[name=starterMode]:checked')?.value;
+  document.getElementById('customStarterGrid').style.display =
+    mode === 'custom' ? '' : 'none';
+}
+
+// ── Wild mode change ─────────────────────────────────────────────────────────
+// ── Gen filter change ────────────────────────────────────────────────────────
+function onGenFilterChange() {
+  const g1 = document.getElementById('includeGen1')?.checked;
+  const g2 = document.getElementById('includeGen2')?.checked;
+  const g3 = document.getElementById('includeGen3')?.checked;
+  const warn = document.getElementById('genFilterWarning');
+  if (warn) warn.style.display = (!g1 && !g2 && !g3) ? '' : 'none';
+}
+
+function syncWildBanBadHeld() {
+  const enabled = document.getElementById('wildRandHeldItems')?.checked;
+  const row = document.getElementById('wildBanBadHeldRow');
+  if (row) row.style.display = enabled ? 'flex' : 'none';
+}
+
+function onWildModeChange() {
+  const mode = document.querySelector('input[name=wildMode]:checked')?.value;
+  const on   = mode && mode !== 'unchanged';
+  document.getElementById('wildRuleSection').style.opacity       = on ? '' : '.35';
+  document.getElementById('wildRuleSection').style.pointerEvents = on ? '' : 'none';
+  document.getElementById('wildExtraSection').style.opacity       = on ? '' : '.35';
+  document.getElementById('wildExtraSection').style.pointerEvents = on ? '' : 'none';
+}
+
+// ── Trainer mode change ──────────────────────────────────────────────────────
+function onTrainerModeChange() {
+  const mode = document.querySelector('input[name=trainerMode]:checked')?.value;
+  const on   = mode && mode !== 'unchanged';
+  ['trainerAdditionalSection','trainerEvoSection'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.opacity = on ? '' : '.35'; el.style.pointerEvents = on ? '' : 'none'; }
+  });
+  // Weight types row only active when a type-themed mode is selected
+  const typeThemed = (mode === 'type_themed' || mode === 'type_themed_boss');
+  const wtRow = document.getElementById('trainerWeightTypesRow');
+  if (wtRow) {
+    wtRow.style.opacity = typeThemed ? '' : '.35';
+    wtRow.style.pointerEvents = typeThemed ? '' : 'none';
+    if (!typeThemed) { const cb = document.getElementById('trainerWeightTypes'); if (cb) cb.checked = false; }
+  }
+}
+
+function syncTrainerForceEvolved() {
+  const cb  = document.getElementById('trainerForceEvolved');
+  const row = document.getElementById('trainerForceEvoRow');
+  if (row) row.style.display = cb && cb.checked ? '' : 'none';
+}
+
+// ── Static mode change ───────────────────────────────────────────────────────
+function onStaticModeChange() {}
+
+// ── Trade mode change ────────────────────────────────────────────────────────
+function onTradeModeChange() {
+  const mode = document.querySelector('input[name=tradeMode]:checked')?.value;
+  const on   = mode && mode !== 'unchanged';
+  const sub  = document.getElementById('tradeSubOptions');
+  if (sub) { sub.style.opacity = on ? '' : '.35'; sub.style.pointerEvents = on ? '' : 'none'; }
+}
+
+// ── Field items change ───────────────────────────────────────────────────────
+function onFieldItemsModeChange() {
+  const mode = document.querySelector('input[name=fieldItemsMode]:checked')?.value;
+  // Ban bad items sub-option only applies to random modes, not shuffle
+  const on = (mode === 'random' || mode === 'random_even');
+  const sec = document.getElementById('fieldItemsSubSection');
+  if (sec) { sec.style.opacity = on ? '' : '.35'; sec.style.pointerEvents = on ? '' : 'none'; }
+}
+
+// ── Starting items ───────────────────────────────────────────────────────────
+function onStartItemsChange() {
+  const enable = document.getElementById('startItemsEnable')?.checked;
+  const body   = document.getElementById('startItemsBody');
+  if (body) body.style.display = enable ? '' : 'none';
+}
+
+// Ask how many duplicate copies to create. Returns a clamped count (1–99),
+// or 0 if the user cancelled / entered something invalid.
+function _askCopies() {
+  const raw = prompt('How many copies? (1–99)', '1');
+  if (raw === null) return 0;
+  const n = parseInt(raw);
+  if (isNaN(n) || n < 1) return 0;
+  return Math.min(99, n);
+}
+
+let _bagItemCount = 0;
+function _makeItemRow(listId, prefix, itemConst, qty) {
+  if (!ITEM_POOL.length) { alert('Items not loaded yet.'); return; }
+  const id  = prefix + '_' + (++_bagItemCount);
+  const qv  = qty !== undefined ? Math.min(99, Math.max(1, parseInt(qty) || 1)) : 1;
+  const row = document.createElement('div');
+  row.className = 'item-row';
+  row.id = id + '_row';
+  row.innerHTML = `
+    <input type="number" min="1" max="99" value="${qv}" id="${id}_qty" style="width:60px"
+      oninput="if(+this.value>99)this.value=99;if(this.value&&+this.value<1)this.value=1">
+    <div id="${id}_cb" style="flex:1"></div>
+    <button class="btn-dup" title="Duplicate this row" onclick="_dupItemRow('${id}','${listId}','${prefix}')">⧉</button>
+    <button class="btn-remove" onclick="document.getElementById('${id}_row').remove()">✕</button>`;
+  document.getElementById(listId).appendChild(row);
+  makeCombobox(id + '_cb', ITEM_POOL, 'Item…');
+  if (itemConst) _cbSetValue(id + '_cb', itemConst);
+}
+function _dupItemRow(id, listId, prefix) {
+  const qty = parseInt(document.getElementById(id + '_qty')?.value || '1');
+  const c   = _cbGetValue(id + '_cb');
+  const n   = _askCopies();
+  for (let i = 0; i < n; i++) _makeItemRow(listId, prefix, c, qty);
+}
+function addBagItem()  { _makeItemRow('bagItemList', 'bagItem'); }
+function addPCItem()   { _makeItemRow('pcItemList',  'pcItem');  }
+
+function _gatherItemList(listId) {
+  const rows = document.getElementById(listId)?.children || [];
+  const result = [];
+  for (const row of rows) {
+    const id  = row.id.replace('_row', '');
+    const qty = parseInt(document.getElementById(id + '_qty')?.value || '1');
+    const c   = _cbGetValue(id + '_cb');
+    if (c) result.push({ const: c, qty });
+  }
+  return result;
+}
+function _gatherBagItems() { return _gatherItemList('bagItemList'); }
+function _gatherPCItems()  { return _gatherItemList('pcItemList');  }
+
+// ── PC Pokémon ───────────────────────────────────────────────────────────────
+function onPCPokemonChange() {
+  const enable = document.getElementById('pcPokemonEnable')?.checked;
+  const body   = document.getElementById('pcPokemonBody');
+  if (body) body.style.display = enable ? '' : 'none';
+}
+
+let _pcMonCount = 0;
+function addPCMon(data) {
+  const idx = ++_pcMonCount;
+  const id  = 'pcMon_' + idx;
+  const card = document.createElement('div');
+  card.className = 'pc-mon-card';
+  card.id = id + '_card';
+  card.innerHTML = `
+    <div class="pc-mon-row">
+      <div class="pc-mon-field pc-mon-species">
+        <label>Species</label>
+        <div id="${id}_species"></div>
+      </div>
+      <div class="pc-mon-field">
+        <label>Level</label>
+        <input type="number" class="pc-mon-number" id="${id}_level" min="1" max="100" value="${data?.level||5}"
+          oninput="if(+this.value>100)this.value=100;if(this.value&&+this.value<1)this.value=1">
+      </div>
+      <div class="pc-mon-field">
+        <label>Nickname</label>
+        <input type="text" class="pc-mon-nick" id="${id}_nick" placeholder="(none)" maxlength="10" value="${data?.nickname||''}">
+      </div>
+      <button class="btn-dup" title="Duplicate this Pokémon" onclick="_dupPCMon('${id}')" style="margin-top:18px">⧉</button>
+      <button class="btn-remove" onclick="document.getElementById('${id}_card').remove()" style="margin-top:18px">✕ Remove</button>
+    </div>
+    <div class="pc-mon-row" style="margin-top:4px">
+      <div class="pc-mon-field" style="flex:1;min-width:200px">
+        <label>Held Item</label>
+        <div id="${id}_held"></div>
+      </div>
+    </div>
+    <div class="pc-mon-row">
+      <div class="pc-mon-section-label">Moves (leave blank = default)</div>
+    </div>
+    <div class="pc-mon-row">
+      ${[0,1,2,3].map(mi => `<div class="pc-mon-field" style="flex:1;min-width:130px"><label>Move ${mi+1}</label><div id="${id}_move${mi}"></div></div>`).join('')}
+    </div>
+    <div class="pc-mon-row">
+      <div class="pc-mon-section-label">IVs (0–31, 31 = perfect)</div>
+    </div>
+    <div class="pc-mon-row">
+      <div class="pc-mon-dvs-wrap" id="${id}_dvs">
+        ${['HP','Atk','Def','SpAtk','SpDef','Spd'].map(stat =>
+          `<div class="pc-mon-dv"><label>${stat}</label>
+           <input type="number" class="pc-mon-number pc-mon-dv-input" id="${id}_iv_${stat.toLowerCase()}" min="0" max="31" value="${data?.['iv'+stat]??31}"
+             oninput="if(+this.value>31)this.value=31;if(this.value&&+this.value<0)this.value=0"></div>`
+        ).join('')}
+      </div>
+      <button class="btn-secondary" style="font-size:11px;padding:4px 8px;align-self:flex-end;margin-bottom:1px;white-space:nowrap"
+        onclick="document.getElementById('${id}_dvs').querySelectorAll('.pc-mon-dv-input').forEach(el=>{el.value=Math.floor(Math.random()*32)})">🎲 Random</button>
+    </div>`;
+  document.getElementById('pcMonList').appendChild(card);
+  makeCombobox(id + '_species', POKEMON, 'Species…');
+  if (data?.species) _cbSetValue(id + '_species', data.species);
+  const itemPoolWithNone = [{c:'', n:'— No held item —'}, ...ITEM_POOL];
+  makeCombobox(id + '_held', itemPoolWithNone, 'Search items…');
+  if (data?.heldItem) _cbSetValue(id + '_held', data.heldItem);
+  const movePoolWithNone = [{c:'', n:'— None —'}, ...MOVE_POOL];
+  [0,1,2,3].forEach(mi => {
+    makeCombobox(id + '_move' + mi, movePoolWithNone, 'Search moves…');
+    if (data?.moves?.[mi]) _cbSetValue(id + '_move' + mi, data.moves[mi]);
+  });
+}
+
+function _gatherOnePCMon(card) {
+  const id      = card.id.replace('_card', '');
+  const species = _cbGetValue(id + '_species');
+  if (!species) return null;
+  return {
+    species,
+    level:    parseInt(document.getElementById(id + '_level')?.value || '5'),
+    nickname: document.getElementById(id + '_nick')?.value?.trim() || '',
+    heldItem: _cbGetValue(id + '_held') || '',
+    moves:    [0,1,2,3].map(mi => _cbGetValue(id + '_move' + mi) || '').filter(Boolean),
+    ivHP:     parseInt(document.getElementById(id + '_iv_hp')?.value ?? 31),
+    ivAtk:    parseInt(document.getElementById(id + '_iv_atk')?.value ?? 31),
+    ivDef:    parseInt(document.getElementById(id + '_iv_def')?.value ?? 31),
+    ivSpAtk:  parseInt(document.getElementById(id + '_iv_spatk')?.value ?? 31),
+    ivSpDef:  parseInt(document.getElementById(id + '_iv_spdef')?.value ?? 31),
+    ivSpd:    parseInt(document.getElementById(id + '_iv_spd')?.value ?? 31),
+  };
+}
+function _dupPCMon(id) {
+  const card = document.getElementById(id + '_card');
+  const data = card && _gatherOnePCMon(card);
+  if (!data) { alert('Pick a species first.'); return; }
+  const n = _askCopies();
+  for (let i = 0; i < n; i++) addPCMon(data);
+}
+function _gatherPCMons() {
+  const cards = document.getElementById('pcMonList')?.children || [];
+  const result = [];
+  for (const card of cards) {
+    const data = _gatherOnePCMon(card);
+    if (data) result.push(data);
+  }
+  return result;
+}
+
+// ── Seed ─────────────────────────────────────────────────────────────────────
+function rollSeed() {
+  document.getElementById('seed').value = Math.floor(Math.random() * 1000000);
+}
+
+// ── Gather / apply settings ──────────────────────────────────────────────────
+function gatherSettings() {
+  const starterMode = document.querySelector('input[name=starterMode]:checked')?.value || 'random';
+  const customStarters = [0,1,2].map(i => _cbGetValue('customCb' + i));
+  return {
+    sourceDir: document.getElementById('srcDir').value.trim(),
+    outputDir: document.getElementById('outDir').value.trim(),
+    includeGen1:         document.getElementById('includeGen1')?.checked ?? true,
+    includeGen2:         document.getElementById('includeGen2')?.checked ?? true,
+    includeGen3:         document.getElementById('includeGen3')?.checked ?? true,
+    removeTimeEvolutions:  document.getElementById('removeTimeEvolutions')?.checked,
+    fullHMCompat:          document.getElementById('fullHMCompat')?.checked,
+    starterMode,
+    customStarters,
+    wildMode:            document.querySelector('input[name=wildMode]:checked')?.value || 'random',
+    wildRule:            document.querySelector('input[name=wildRule]:checked')?.value || 'none',
+    wildNoLegendaries:   document.getElementById('wildNoLegendaries')?.checked,
+    wildRandHeldItems:   document.getElementById('wildRandHeldItems')?.checked,
+    wildBanBadHeldItems: document.getElementById('wildBanBadHeldItems')?.checked,
+    trainerMode:         document.querySelector('input[name=trainerMode]:checked')?.value || 'random',
+    trainerRivalStarter:    document.getElementById('trainerRivalStarter')?.checked,
+    trainerSimilarStrength: document.getElementById('trainerSimilarStrength')?.checked,
+    trainerNoLegend:        document.getElementById('trainerNoLegend')?.checked,
+    trainerWeightTypes:     document.getElementById('trainerWeightTypes')?.checked,
+    trainerForceEvolved:    document.getElementById('trainerForceEvolved')?.checked,
+    trainerForceEvoLevel:   parseInt(document.getElementById('trainerForceEvoLevel')?.value || '30'),
+    staticMode:          document.querySelector('input[name=staticMode]:checked')?.value || 'unchanged',
+    tradeMode:           document.querySelector('input[name=tradeMode]:checked')?.value || 'unchanged',
+    tradeRandNicknames:  document.getElementById('tradeRandNicknames')?.checked,
+    tradeRandOT:         document.getElementById('tradeRandOT')?.checked,
+    tradeRandIVs:        document.getElementById('tradeRandIVs')?.checked,
+    tradeRandItems:      document.getElementById('tradeRandItems')?.checked,
+    fieldItemsMode:      document.querySelector('input[name=fieldItemsMode]:checked')?.value || 'unchanged',
+    fieldItemsBanBad:    document.getElementById('fieldItemsBanBad')?.checked,
+    startItemsEnable:    document.getElementById('startItemsEnable')?.checked,
+    startBagItems:       _gatherBagItems(),
+    startPcItems:        _gatherPCItems(),
+    pcPokemonEnable:     document.getElementById('pcPokemonEnable')?.checked,
+    pcPokemon:           _gatherPCMons(),
+    zeroGrinding:        document.getElementById('zeroGrinding')?.checked,
+    elite4Prep:          document.getElementById('elite4Prep')?.checked,
+    buildRom:            document.getElementById('buildRom')?.checked,
+  };
+}
+
+function applySettings(s) {
+  if (!s) return;
+  if (s.sourceDir) document.getElementById('srcDir').value = s.sourceDir;
+  if (s.outputDir) document.getElementById('outDir').value = s.outputDir;
+
+  const setRadio = (name, val) => {
+    const el = document.querySelector(`input[name=${name}][value="${val}"]`);
+    if (el) el.checked = true;
+  };
+  const setCb = (id, val) => { const el = document.getElementById(id); if (el && val!==undefined) el.checked = val; };
+
+  setCb('includeGen1', s.includeGen1 ?? true);
+  setCb('includeGen2', s.includeGen2 ?? true);
+  setCb('includeGen3', s.includeGen3 ?? true);
+  onGenFilterChange();
+  setCb('removeTimeEvolutions', s.removeTimeEvolutions);
+  setCb('fullHMCompat',         s.fullHMCompat);
+
+  if (s.starterMode)  setRadio('starterMode',  s.starterMode);
+  if (s.customStarters) [0,1,2].forEach(i => { if (s.customStarters[i]) _cbSetValue('customCb'+i, s.customStarters[i]); });
+
+  if (s.wildMode)     setRadio('wildMode',     s.wildMode);
+  if (s.wildRule)     setRadio('wildRule',      s.wildRule);
+  setCb('wildNoLegendaries',   s.wildNoLegendaries);
+  setCb('wildRandHeldItems',   s.wildRandHeldItems);
+  setCb('wildBanBadHeldItems', s.wildBanBadHeldItems ?? true);
+  syncWildBanBadHeld();
+
+  if (s.trainerMode)  setRadio('trainerMode',  s.trainerMode);
+  setCb('trainerRivalStarter',    s.trainerRivalStarter);
+  setCb('trainerSimilarStrength', s.trainerSimilarStrength);
+  setCb('trainerNoLegend',        s.trainerNoLegend);
+  setCb('trainerWeightTypes',     s.trainerWeightTypes);
+  setCb('trainerForceEvolved',    s.trainerForceEvolved);
+  if (s.trainerForceEvoLevel) {
+    const sl = document.getElementById('trainerForceEvoLevel');
+    if (sl) { sl.value = s.trainerForceEvoLevel; document.getElementById('trainerForceEvoLabel').textContent = s.trainerForceEvoLevel; }
+  }
+
+  if (s.staticMode)   setRadio('staticMode',   s.staticMode);
+  if (s.tradeMode)    setRadio('tradeMode',    s.tradeMode);
+  setCb('tradeRandNicknames', s.tradeRandNicknames);
+  setCb('tradeRandOT',        s.tradeRandOT);
+  setCb('tradeRandIVs',       s.tradeRandIVs);
+  setCb('tradeRandItems',     s.tradeRandItems);
+  if (s.fieldItemsMode) setRadio('fieldItemsMode', s.fieldItemsMode);
+  setCb('fieldItemsBanBad',  s.fieldItemsBanBad ?? true);
+  setCb('startItemsEnable',  s.startItemsEnable);
+  onStartItemsChange();
+  if (s.startItemsEnable) {
+    document.getElementById('bagItemList').innerHTML = '';
+    document.getElementById('pcItemList').innerHTML  = '';
+    (s.startBagItems || []).forEach(i => { _makeItemRow('bagItemList', 'bagItem'); /* set value after */ });
+    (s.startPcItems  || []).forEach(i => { _makeItemRow('pcItemList',  'pcItem');  });
+    // Re-apply values after comboboxes are created
+    const restoreList = (listId, items) => {
+      const rows = document.getElementById(listId)?.children || [];
+      items.forEach((item, idx) => {
+        if (!rows[idx]) return;
+        const id = rows[idx].id.replace('_row','');
+        if (item.const) _cbSetValue(id + '_cb', item.const);
+        const qtyEl = document.getElementById(id + '_qty');
+        if (qtyEl && item.qty) qtyEl.value = item.qty;
+      });
+    };
+    restoreList('bagItemList', s.startBagItems || []);
+    restoreList('pcItemList',  s.startPcItems  || []);
+  }
+  setCb('pcPokemonEnable',   s.pcPokemonEnable);
+  setCb('zeroGrinding',      s.zeroGrinding);
+  setCb('elite4Prep',        s.elite4Prep);
+  setCb('buildRom', s.buildRom ?? true);
+
+  // Restore PC Pokémon cards
+  const pcList = document.getElementById('pcMonList');
+  if (pcList) {
+    pcList.innerHTML = '';
+    if (Array.isArray(s.pcPokemon)) s.pcPokemon.forEach(m => addPCMon(m));
+  }
+
+  // Re-run UI state updates
+  onGenFilterChange();
+  onStarterModeChange(); onWildModeChange(); onTrainerModeChange();
+  onTradeModeChange(); onFieldItemsModeChange(); onStartItemsChange(); onPCPokemonChange();
+  syncTrainerForceEvolved();
+}
+
+// ── Save / Load ──────────────────────────────────────────────────────────────
+function downloadJson(obj, filename) {
+  const a = document.createElement('a');
+  a.href = 'data:application/json,' + encodeURIComponent(JSON.stringify(obj, null, 2));
+  a.download = filename;
+  a.click();
+}
+
+function saveSettings()         { downloadJson(gatherSettings(), 'emerald_legacy_settings.json'); }
+function saveSettingsAndSeed()  {
+  const seed = document.getElementById('seed').value || Math.floor(Math.random()*1000000);
+  downloadJson({ seed, ...gatherSettings() }, 'emerald_legacy_settings_seed.json');
+}
+function loadSettingsFile()     { document.getElementById('settingsFileInput').click(); }
+function onSettingsFile(input)  {
+  const f = input.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const s = JSON.parse(e.target.result);
+      if (s.seed) document.getElementById('seed').value = s.seed;
+      applySettings(s);
+    } catch(err) { alert('Failed to parse settings: ' + err); }
+  };
+  r.readAsText(f);
+  input.value = '';
+}
+
+// ── Randomize ────────────────────────────────────────────────────────────────
+let _logOffset = 0;
+let _pollTimer = null;
+
+async function startRandomize() {
+  const src = document.getElementById('srcDir').value.trim();
+  const out = document.getElementById('outDir').value.trim();
+  if (!src) { alert('Please set the Source Directory.'); return; }
+  if (!out) { alert('Please set the Output Directory.'); return; }
+  if (src === out) { alert('Source and Output must be different directories.'); return; }
+
+  const settings = gatherSettings();
+  const seed = document.getElementById('seed').value.trim();
+  const payload = {
+    ...settings,
+    seed: seed ? parseInt(seed) : null,
+  };
+
+  // Reset log
+  _logOffset = 0;
+  const logBox = document.getElementById('log-box');
+  if (logBox) { logBox.textContent = ''; logBox.style.display = 'block'; }
+  document.querySelector('.log-toggle').textContent = '▼ Build Log';
+
+  setRunning(true);
+
+  try {
+    const res = await fetch('/api/randomize_emerald', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await res.json();
+    if (!d.ok) { setRunning(false); alert('Error: ' + (d.error || 'Unknown')); return; }
+    _pollTimer = setInterval(pollStatus, 800);
+  } catch (e) {
+    setRunning(false);
+    alert('Request failed: ' + e);
+  }
+}
+
+async function pollStatus() {
+  try {
+    // Fetch new log lines
+    const lr = await fetch('/api/log?since=' + _logOffset);
+    const ld = await lr.json();
+    if (ld.lines && ld.lines.length) {
+      const logBox = document.getElementById('log-box');
+      if (logBox) {
+        logBox.textContent += ld.lines.join('\n') + '\n';
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+      _logOffset = ld.total;
+    }
+
+    // Check job status
+    const sr = await fetch('/api/status');
+    const sd = await sr.json();
+    if (sd.done || !sd.running) {
+      clearInterval(_pollTimer);
+      setRunning(false);
+      if (sd.error) {
+        document.getElementById('statusText').textContent = '❌ Error — see log';
+        document.getElementById('statusText').style.color = 'var(--red)';
+      } else {
+        document.getElementById('statusText').textContent = '✅ Done!';
+        document.getElementById('statusText').style.color = 'var(--green)';
+      }
+    }
+  } catch (e) { console.error(e); }
+}
+
+function setRunning(running) {
+  document.getElementById('btn-randomize').disabled = running;
+  document.getElementById('spinner').style.display  = running ? 'block' : 'none';
+  document.getElementById('statusText').textContent = running ? 'Randomizing…' : 'Ready';
+  document.getElementById('statusText').style.color = '';
+}
+
+// ── Log toggle ───────────────────────────────────────────────────────────────
+function toggleLog() {
+  const logBox = document.getElementById('log-box');
+  const toggle = document.querySelector('.log-toggle');
+  if (!logBox) return;
+  const open = logBox.style.display !== 'none';
+  logBox.style.display = open ? 'none' : 'block';
+  toggle.textContent   = open ? '▲ Build Log' : '▼ Build Log';
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  // Build custom starter comboboxes
+  [0,1,2].forEach(i => {
+    if (document.getElementById('customCb' + i)) {
+      makeCombobox('customCb' + i, POKEMON, POKEMON.find(p=>p.c===STARTER_DEFAULTS[i])?.n || 'Pokémon…');
+      _cbSetValue('customCb' + i, STARTER_DEFAULTS[i]);
+    }
+  });
+
+  // Load item pool from server (shared endpoint)
+  try {
+    const r = await fetch('/api/items?game=emerald');
+    const d = await r.json();
+    if (d.items) ITEM_POOL = d.items.map(it => ({ c: it.const, n: it.name }));
+  } catch(e) {
+    // Fallback: minimal item pool
+    ITEM_POOL = [
+      {c:'ITEM_POTION',n:'Potion'},{c:'ITEM_SUPER_POTION',n:'Super Potion'},
+      {c:'ITEM_HYPER_POTION',n:'Hyper Potion'},{c:'ITEM_MAX_POTION',n:'Max Potion'},
+      {c:'ITEM_RARE_CANDY',n:'Rare Candy'},{c:'ITEM_REVIVE',n:'Revive'},
+      {c:'ITEM_ULTRA_BALL',n:'Ultra Ball'},{c:'ITEM_MASTER_BALL',n:'Master Ball'},
+    ];
+  }
+
+  // Apply initial UI states
+  onWildModeChange();
+  onTrainerModeChange();
+  onFieldItemsModeChange();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+// ── Quick UX: remember last folders + copy-seed button ──────────────────────
+(function(){
+  const GAME = 'emerald';
+  function ready(fn){ document.readyState!=='loading' ? fn() : document.addEventListener('DOMContentLoaded', fn); }
+  ready(function(){
+    ['srcDir','outDir'].forEach(function(id){
+      const el = document.getElementById(id);
+      if (!el) return;
+      const key = 'legacyRand:'+GAME+':'+id;
+      try { const saved = localStorage.getItem(key); if (saved && !el.value) el.value = saved; } catch(e){}
+      const save = function(){ try { localStorage.setItem(key, el.value); } catch(e){} };
+      el.addEventListener('change', save);
+      el.addEventListener('input', save);
+    });
+    const seed = document.getElementById('seed');
+    if (seed && !document.getElementById('copySeedBtn')) {
+      const btn = document.createElement('button');
+      btn.id = 'copySeedBtn'; btn.type = 'button'; btn.className = 'btn-dice';
+      btn.textContent = '📋'; btn.title = 'Copy seed to clipboard';
+      btn.style.marginLeft = '4px';
+      btn.onclick = function(){
+        const v = (seed.value || '').trim();
+        if (!v) return;
+        const flash = function(){ const o = btn.textContent; btn.textContent = '✓'; setTimeout(function(){ btn.textContent = o; }, 900); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(v).then(flash).catch(function(){ try{ seed.select(); document.execCommand('copy'); }catch(e){} flash(); });
+        } else { try{ seed.select(); document.execCommand('copy'); }catch(e){} flash(); }
+      };
+      const row = seed.closest('.rand-seed-row') || seed.parentElement;
+      (row || seed.parentElement).appendChild(btn);
+    }
+  });
+})();
+
+// ── Donations: copy address + optional QR ───────────────────────────────────
+function copyDonate(btn){
+  const el=document.getElementById('btcLnAddr'); if(!el) return;
+  const v=el.value;
+  const flash=function(){ const o=btn.textContent; btn.textContent='✓ Copied'; setTimeout(function(){ btn.textContent=o; },1000); };
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(flash).catch(function(){ el.select(); try{document.execCommand('copy');}catch(e){} flash(); }); }
+  else { el.select(); try{document.execCommand('copy');}catch(e){} flash(); }
+}
+(function(){
+  function ready(fn){ document.readyState!=='loading' ? fn() : document.addEventListener('DOMContentLoaded', fn); }
+  ready(function(){
+    if(window.QRCode){
+      const box=document.getElementById('btcQr');
+      if(box){ try{ new QRCode(box,{text:'lightning:salmoncobra1@primal.net',width:160,height:160}); box.style.display='block'; }catch(e){} }
+    }
+  });
+})();
+</script>
+</body>
+</html>

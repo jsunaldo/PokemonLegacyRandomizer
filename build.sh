@@ -1,11 +1,11 @@
 #!/bin/bash
-# build.sh — Build the Crystal Legacy Randomizer into a self-contained macOS .app
+# build.sh — Build the Pokemon Legacy Randomizer into a self-contained macOS .app
 # Requires: pip3 install pyinstaller
 
 set -e
 cd "$(dirname "$0")"
 
-APP_NAME="CrystalLegacyRandomizer"
+APP_NAME="PokemonLegacyRandomizer"
 
 echo "=== Cleaning previous build ==="
 rm -rf build dist "${APP_NAME}.spec"
@@ -32,6 +32,7 @@ PYINSTALLER="${HOME}/Library/Python/3.9/bin/pyinstaller"
   --hidden-import parser_yellow \
   --hidden-import writer_emerald \
   --hidden-import writer_yellow \
+  --hidden-import spoiler_log \
   --noconfirm \
   launcher_gui.py
 

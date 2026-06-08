@@ -6,8 +6,8 @@ SRC="/Users/jsun/Library/CloudStorage/Dropbox/Gambling/Dan Green/Mario Baseball/
 
 # All known app locations — add new ones here if the app is copied elsewhere
 APPS=(
-  "$SRC/CrystalLegacyRandomizer.app/Contents/Resources/app"
-  "/Users/jsun/Desktop/Test Randomizer/CrystalLegacyRandomizer.app/Contents/Resources/app"
+  "$SRC/PokemonLegacyRandomizer.app/Contents/Resources/app"
+  "/Users/jsun/Desktop/Test Randomizer/PokemonLegacyRandomizer.app/Contents/Resources/app"
 )
 
 FILES=(
@@ -21,6 +21,7 @@ FILES=(
   constants_yellow.py
   static_data.py
   trade_data.py
+  spoiler_log.py
   randomizer_engine_emerald.py
   randomizer_engine_yellow.py
   parser_emerald.py

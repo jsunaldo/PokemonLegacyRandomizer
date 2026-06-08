@@ -3,7 +3,7 @@
 # Run this after making any code changes so the double-click app stays up to date.
 
 SRC="$(cd "$(dirname "$0")" && pwd)"
-BUNDLE="$SRC/CrystalLegacyRandomizer.app"
+BUNDLE="$SRC/PokemonLegacyRandomizer.app"
 DEST="$BUNDLE/Contents/Resources/app"
 
 if [ ! -d "$BUNDLE" ]; then
@@ -17,7 +17,7 @@ for f in main.py launcher_gui.py \
           parser.py constants.py randomizer_engine.py writer.py \
           parser_yellow.py constants_yellow.py randomizer_engine_yellow.py writer_yellow.py \
           parser_emerald.py constants_emerald.py randomizer_engine_emerald.py writer_emerald.py \
-          item_data.py trade_data.py static_data.py; do
+          item_data.py trade_data.py static_data.py spoiler_log.py; do
     cp "$SRC/$f" "$DEST/$f" && echo "  ✓ $f"
 done
 
