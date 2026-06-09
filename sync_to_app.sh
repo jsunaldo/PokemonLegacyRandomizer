@@ -43,7 +43,7 @@ for APP in "${APPS[@]}"; do
       echo "  ✓ $f"
     fi
   done
-  for html in crystal.html emerald.html yellow.html index.html; do
+  for html in crystal.html emerald.html yellow.html index.html common.js; do
     if [ -f "$SRC/static/$html" ]; then
       cp "$SRC/static/$html" "$APP/static/$html"
       echo "  ✓ static/$html"

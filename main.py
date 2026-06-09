@@ -655,6 +655,150 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 # ---------------------------------------------------------------------------
+# Shared pipeline helpers (used by all three game handlers)
+# ---------------------------------------------------------------------------
+
+def _prep_job(data: dict):
+    """Validate source/output dirs and resolve the seed.
+
+    Returns (src, out, seed). Raises ValueError on bad input."""
+    import random as _random
+
+    src = data.get("sourceDir", "").strip()
+    out = data.get("outputDir", "").strip()
+    seed_raw = data.get("seed", "")
+
+    if not src or not os.path.isdir(src):
+        raise ValueError(f"Source directory not found: {src!r}")
+    if not out:
+        raise ValueError("Output directory is required.")
+    if src == out:
+        raise ValueError("Source and Output directories must be different.")
+
+    try:
+        seed = int(seed_raw)
+    except (ValueError, TypeError):
+        seed = _random.randint(0, 999999)
+    return src, out, seed
+
+
+def _save_settings_used(data: dict, seed: int, out: str, log):
+    """Auto-save the exact settings used (reproducibility). Best-effort."""
+    try:
+        used = {"seed": seed}
+        used.update({k: v for k, v in data.items()
+                     if k not in ("sourceDir", "outputDir", "seed")})
+        path = os.path.join(out, "settings_used.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(used, f, indent=2)
+        log(f"Settings saved: {path}")
+    except Exception as e:
+        log(f"[WARN] Could not save settings_used.json: {e}")
+
+
+def _run_make_build(out: str, log, kind: str, rgbds_version=None):
+    """Run 'make' in the output tree with the right toolchain on PATH.
+
+    kind: "gb" (RGBDS, needs rgbds_version) or "gba" (devkitARM + agbcc).
+    Streams build output to the log; raises RuntimeError on failure."""
+    import shutil as _shutil
+
+    log("\n" + "=" * 56)
+    log("Building ROM with 'make'...")
+    log("=" * 56)
+
+    env = os.environ.copy()
+    base_paths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]
+    env["PATH"] = os.pathsep.join(base_paths + env.get("PATH", "").split(os.pathsep))
+
+    make_exe = _shutil.which("make", path=env["PATH"])
+    if not make_exe:
+        raise RuntimeError(
+            "Could not find 'make'. "
+            "Install Xcode Command Line Tools:  xcode-select --install"
+        )
+
+    if kind == "gb":
+        log("Checking RGBDS toolchain…")
+        rgbds_bin = _ensure_rgbds(rgbds_version, log)
+        env["PATH"] = rgbds_bin + os.pathsep + env["PATH"]
+    else:  # gba
+        log("Checking GBA toolchain (devkitARM + agbcc)…")
+        gba_env = _ensure_gba_toolchain(log)
+        env["DEVKITPRO"]       = gba_env["DEVKITPRO"]
+        env["DEVKITARM"]       = gba_env["DEVKITARM"]
+        env["PATH"]            = gba_env["PATH"] + os.pathsep + env["PATH"]
+        env["PKG_CONFIG_PATH"] = gba_env["PKG_CONFIG_PATH"]
+
+        # Install agbcc into the output directory (tools/agbcc/)
+        agbcc_src = gba_env["agbcc_install_dir"]
+        agbcc_dst = os.path.join(out, "tools", "agbcc")
+        if not os.path.isfile(os.path.join(agbcc_dst, "bin", "agbcc")):
+            log("  Installing agbcc into output directory…")
+            _shutil.copytree(agbcc_src, agbcc_dst, dirs_exist_ok=True)
+
+    proc = subprocess.Popen(
+        [make_exe],
+        cwd=out,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env=env,
+    )
+    for line in proc.stdout:
+        log(line.rstrip())
+    proc.wait()
+
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"'make' failed with exit code {proc.returncode}. "
+            "Check the log above for compiler errors."
+        )
+
+
+def _find_rom(out: str, canonical: str, ext: str, log) -> str:
+    """Locate the built ROM: canonical name first, else newest *ext in out."""
+    candidate = os.path.join(out, canonical)
+    if os.path.isfile(candidate):
+        return candidate
+    rom_files = [
+        os.path.join(out, f) for f in os.listdir(out)
+        if f.endswith(ext)
+    ]
+    if rom_files:
+        rom_path = sorted(rom_files)[-1]  # pick most recent if multiple
+        log(f"  (ROM found as: {os.path.basename(rom_path)})")
+        return rom_path
+    raise RuntimeError(
+        f"'make' succeeded but no {ext} file was found in the output directory. "
+        "Check the Makefile for the actual output filename."
+    )
+
+
+def _warn_new_game_required(log):
+    """Remind that injected items/Pokémon only appear on a brand-new save."""
+    log("\n⚠️  IMPORTANT: Starting Items and PC Pokémon only appear")
+    log("   when you START A NEW GAME — they will NOT appear on a")
+    log("   saved/continued game. Delete your save file or use a")
+    log("   fresh emulator state before testing.")
+
+
+def _log_finish(build_rom: bool, rom_path, out: str, canonical: str, log):
+    """Final success footer for a randomizer run."""
+    log("\n" + "=" * 56)
+    if build_rom and rom_path:
+        log("Done! ROM built successfully:")
+        log(f"  {rom_path}")
+    else:
+        log("Done! Randomized source saved to:")
+        log(f"  {out}")
+        log("\nTo compile the ROM, open Terminal in that folder and run:")
+        log("  make")
+        log(f"\nThe ROM will be: {canonical}")
+    log("=" * 56)
+
+
+# ---------------------------------------------------------------------------
 # Randomization worker (runs in background thread)
 # ---------------------------------------------------------------------------
 
@@ -665,23 +809,7 @@ def _run_randomizer(data: dict):
         _append_log(msg)
 
     try:
-        import random as _random
-
-        src = data.get("sourceDir", "").strip()
-        out = data.get("outputDir", "").strip()
-        seed_raw = data.get("seed", "")
-
-        if not src or not os.path.isdir(src):
-            raise ValueError(f"Source directory not found: {src!r}")
-        if not out:
-            raise ValueError("Output directory is required.")
-        if src == out:
-            raise ValueError("Source and Output directories must be different.")
-
-        try:
-            seed = int(seed_raw)
-        except (ValueError, TypeError):
-            seed = _random.randint(0, 999999)
+        src, out, seed = _prep_job(data)
 
         log("=" * 56)
         log(f"Crystal Legacy Randomizer  |  Seed: {seed}")
@@ -963,102 +1091,21 @@ def _run_randomizer(data: dict):
         except Exception as _sp_e:
             log(f"[WARN] Spoiler log skipped: {_sp_e}")
 
-        # ── Auto-save the exact settings used (reproducibility) ──
-        try:
-            import json as _json
-            _used = {"seed": seed}
-            _used.update({k: v for k, v in data.items()
-                          if k not in ("sourceDir", "outputDir", "seed")})
-            with open(os.path.join(out, "settings_used.json"), "w", encoding="utf-8") as _sf:
-                _json.dump(_used, _sf, indent=2)
-            log(f"Settings saved: {os.path.join(out, 'settings_used.json')}")
-        except Exception as _se:
-            log(f"[WARN] Could not save settings_used.json: {_se}")
+        _save_settings_used(data, seed, out, log)
 
         # ---- Optional ROM build ----
         build_rom = data.get("buildRom", True)
         rom_path = None
 
         if build_rom:
-            log("\n" + "=" * 56)
-            log("Building ROM with 'make'...")
-            log("=" * 56)
-
-            import shutil as _shutil
-            env = os.environ.copy()
-            base_paths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]
-            env["PATH"] = os.pathsep.join(base_paths + env.get("PATH", "").split(os.pathsep))
-
-            make_exe = _shutil.which("make", path=env["PATH"])
-            if not make_exe:
-                raise RuntimeError(
-                    "Could not find 'make'. "
-                    "Install Xcode Command Line Tools:  xcode-select --install"
-                )
-
-            # Auto-download RGBDS 0.5.2 if not already cached
-            log("Checking RGBDS toolchain…")
-            rgbds_bin = _ensure_rgbds(_RGBDS_CRYSTAL, log)
-            env["PATH"] = rgbds_bin + os.pathsep + env["PATH"]
-
-            proc = subprocess.Popen(
-                [make_exe],
-                cwd=out,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=env,
-            )
-            for line in proc.stdout:
-                log(line.rstrip())
-            proc.wait()
-
-            if proc.returncode != 0:
-                raise RuntimeError(
-                    f"'make' failed with exit code {proc.returncode}. "
-                    "Check the log above for compiler errors."
-                )
-
-            # Remind about new-game requirement if injection features were used
+            _run_make_build(out, log, "gb", _RGBDS_CRYSTAL)
             if starting_bag_items or starting_pc_items or pc_pokemon:
-                log("\n⚠️  IMPORTANT: Starting Items and PC Pokémon only appear")
-                log("   when you START A NEW GAME — they will NOT appear on a")
-                log("   saved/continued game. Delete your save file or use a")
-                log("   fresh emulator state before testing.")
+                _warn_new_game_required(log)
+            rom_path = _find_rom(out, "pokecrystal.gbc", ".gbc", log)
+            rom_path = _save_rom_with_dialog(
+                rom_path, f"CrystalLegacy_Randomized_{seed}.gbc", ".gbc", log)
 
-            # Find the ROM — try canonical name first, then any .gbc in the dir
-            candidate = os.path.join(out, "pokecrystal.gbc")
-            if os.path.isfile(candidate):
-                rom_path = candidate
-            else:
-                gbc_files = [
-                    os.path.join(out, f) for f in os.listdir(out)
-                    if f.endswith(".gbc")
-                ]
-                if gbc_files:
-                    rom_path = sorted(gbc_files)[-1]  # pick most recent if multiple
-                    log(f"  (ROM found as: {os.path.basename(rom_path)})")
-                else:
-                    raise RuntimeError(
-                        "'make' succeeded but no .gbc file was found in the output directory. "
-                        "Check the Makefile for the actual output filename."
-                    )
-
-            # Ask the user where to save the ROM via a native macOS save dialog
-            default_name = f"CrystalLegacy_Randomized_{seed}.gbc"
-            rom_path = _save_rom_with_dialog(rom_path, default_name, ".gbc", log)
-
-        log("\n" + "=" * 56)
-        if build_rom and rom_path:
-            log("Done! ROM built successfully:")
-            log(f"  {rom_path}")
-        else:
-            log("Done! Randomized source saved to:")
-            log(f"  {out}")
-            log("\nTo compile the ROM, open Terminal in that folder and run:")
-            log("  make")
-            log("\nThe ROM will be: pokecrystal.gbc")
-        log("=" * 56)
+        _log_finish(build_rom, rom_path, out, "pokecrystal.gbc", log)
 
         with _state_lock:
             global _job_done
@@ -1090,23 +1137,7 @@ def _run_randomizer_yellow(data: dict):
         _append_log(msg)
 
     try:
-        import random as _random
-
-        src = data.get("sourceDir", "").strip()
-        out = data.get("outputDir", "").strip()
-        seed_raw = data.get("seed", "")
-
-        if not src or not os.path.isdir(src):
-            raise ValueError(f"Source directory not found: {src!r}")
-        if not out:
-            raise ValueError("Output directory is required.")
-        if src == out:
-            raise ValueError("Source and Output directories must be different.")
-
-        try:
-            seed = int(seed_raw)
-        except (ValueError, TypeError):
-            seed = _random.randint(0, 999999)
+        src, out, seed = _prep_job(data)
 
         log("=" * 56)
         log(f"Yellow Legacy Randomizer  |  Seed: {seed}")
@@ -1325,93 +1356,19 @@ def _run_randomizer_yellow(data: dict):
         except Exception as _sp_e:
             log(f"[WARN] Spoiler log skipped: {_sp_e}")
 
-        # ── Auto-save the exact settings used (reproducibility) ──
-        try:
-            import json as _json
-            _used = {"seed": seed}
-            _used.update({k: v for k, v in data.items()
-                          if k not in ("sourceDir", "outputDir", "seed")})
-            with open(os.path.join(out, "settings_used.json"), "w", encoding="utf-8") as _sf:
-                _json.dump(_used, _sf, indent=2)
-            log(f"Settings saved: {os.path.join(out, 'settings_used.json')}")
-        except Exception as _se:
-            log(f"[WARN] Could not save settings_used.json: {_se}")
+        _save_settings_used(data, seed, out, log)
 
         # ── Optional ROM build ─────────────────────────────────────────────────
         build_rom = data.get("buildRom", True)
         rom_path  = None
 
         if build_rom:
-            log("\n" + "=" * 56)
-            log("Building ROM with 'make'...")
-            log("=" * 56)
+            _run_make_build(out, log, "gb", _RGBDS_YELLOW)
+            rom_path = _find_rom(out, "pokeyellow.gbc", ".gbc", log)
+            rom_path = _save_rom_with_dialog(
+                rom_path, f"YellowLegacy_Randomized_{seed}.gbc", ".gbc", log)
 
-            import shutil as _shutil
-            env = os.environ.copy()
-            base_paths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]
-            env["PATH"] = os.pathsep.join(base_paths + env.get("PATH", "").split(os.pathsep))
-
-            make_exe = _shutil.which("make", path=env["PATH"])
-            if not make_exe:
-                raise RuntimeError(
-                    "Could not find 'make'. "
-                    "Install Xcode Command Line Tools:  xcode-select --install"
-                )
-
-            # Auto-download RGBDS 0.6.0 if not already cached
-            log("Checking RGBDS toolchain…")
-            rgbds_bin = _ensure_rgbds(_RGBDS_YELLOW, log)
-            env["PATH"] = rgbds_bin + os.pathsep + env["PATH"]
-
-            proc = subprocess.Popen(
-                [make_exe],
-                cwd=out,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=env,
-            )
-            for line in proc.stdout:
-                log(line.rstrip())
-            proc.wait()
-
-            if proc.returncode != 0:
-                raise RuntimeError(
-                    f"'make' failed with exit code {proc.returncode}. "
-                    "Check the log above for compiler errors."
-                )
-
-            # Find the ROM — Yellow Legacy outputs pokeyellow.gbc
-            candidate = os.path.join(out, "pokeyellow.gbc")
-            if os.path.isfile(candidate):
-                rom_path = candidate
-            else:
-                gbc_files = [
-                    os.path.join(out, f) for f in os.listdir(out)
-                    if f.endswith(".gbc")
-                ]
-                if gbc_files:
-                    rom_path = sorted(gbc_files)[-1]
-                    log(f"  (ROM found as: {os.path.basename(rom_path)})")
-                else:
-                    raise RuntimeError(
-                        "'make' succeeded but no .gbc file found in the output directory."
-                    )
-
-            default_name = f"YellowLegacy_Randomized_{seed}.gbc"
-            rom_path = _save_rom_with_dialog(rom_path, default_name, ".gbc", log)
-
-        log("\n" + "=" * 56)
-        if build_rom and rom_path:
-            log("Done! ROM built successfully:")
-            log(f"  {rom_path}")
-        else:
-            log("Done! Randomized source saved to:")
-            log(f"  {out}")
-            log("\nTo compile the ROM, open Terminal in that folder and run:")
-            log("  make")
-            log("\nThe ROM will be: pokeyellow.gbc")
-        log("=" * 56)
+        _log_finish(build_rom, rom_path, out, "pokeyellow.gbc", log)
 
         with _state_lock:
             global _job_done
@@ -1443,23 +1400,7 @@ def _run_randomizer_emerald(data: dict):
         _append_log(msg)
 
     try:
-        import random as _random
-
-        src = data.get("sourceDir", "").strip()
-        out = data.get("outputDir", "").strip()
-        seed_raw = data.get("seed", "")
-
-        if not src or not os.path.isdir(src):
-            raise ValueError(f"Source directory not found: {src!r}")
-        if not out:
-            raise ValueError("Output directory is required.")
-        if src == out:
-            raise ValueError("Source and Output directories must be different.")
-
-        try:
-            seed = int(seed_raw)
-        except (ValueError, TypeError):
-            seed = _random.randint(0, 999999)
+        src, out, seed = _prep_job(data)
 
         log("=" * 56)
         log(f"Emerald Legacy Randomizer  |  Seed: {seed}")
@@ -1711,105 +1652,19 @@ def _run_randomizer_emerald(data: dict):
         except Exception as _sp_e:
             log(f"[WARN] Spoiler log skipped: {_sp_e}")
 
-        # ── Auto-save the exact settings used (reproducibility) ──
-        try:
-            import json as _json
-            _used = {"seed": seed}
-            _used.update({k: v for k, v in data.items()
-                          if k not in ("sourceDir", "outputDir", "seed")})
-            with open(os.path.join(out, "settings_used.json"), "w", encoding="utf-8") as _sf:
-                _json.dump(_used, _sf, indent=2)
-            log(f"Settings saved: {os.path.join(out, 'settings_used.json')}")
-        except Exception as _se:
-            log(f"[WARN] Could not save settings_used.json: {_se}")
+        _save_settings_used(data, seed, out, log)
 
         # ── Optional ROM build ─────────────────────────────────────────────────
         build_rom = data.get("buildRom", True)
         rom_path  = None
 
         if build_rom:
-            log("\n" + "=" * 56)
-            log("Building ROM with 'make'...")
-            log("=" * 56)
+            _run_make_build(out, log, "gba")
+            rom_path = _find_rom(out, "pokeemerald.gba", ".gba", log)
+            rom_path = _save_rom_with_dialog(
+                rom_path, f"EmeraldLegacy_Randomized_{seed}.gba", ".gba", log)
 
-            import shutil as _shutil
-            env = os.environ.copy()
-            base_paths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]
-            env["PATH"] = os.pathsep.join(base_paths + env.get("PATH", "").split(os.pathsep))
-
-            make_exe = _shutil.which("make", path=env["PATH"])
-            if not make_exe:
-                raise RuntimeError(
-                    "Could not find 'make'. "
-                    "Install Xcode Command Line Tools:  xcode-select --install"
-                )
-
-            # Auto-install devkitARM + agbcc if not present (one-time setup)
-            log("Checking GBA toolchain (devkitARM + agbcc)…")
-            gba_env = _ensure_gba_toolchain(log)
-            # Prepend devkitARM bins and set required env vars for pokeemerald Makefile
-            env["DEVKITPRO"]       = gba_env["DEVKITPRO"]
-            env["DEVKITARM"]       = gba_env["DEVKITARM"]
-            env["PATH"]            = gba_env["PATH"] + os.pathsep + env["PATH"]
-            env["PKG_CONFIG_PATH"] = gba_env["PKG_CONFIG_PATH"]
-
-            # Install agbcc into the output directory (tools/agbcc/)
-            import shutil as _sh_agbcc
-            agbcc_src = gba_env["agbcc_install_dir"]
-            agbcc_dst = os.path.join(out, "tools", "agbcc")
-            if not os.path.isfile(os.path.join(agbcc_dst, "bin", "agbcc")):
-                log("  Installing agbcc into output directory…")
-                _sh_agbcc.copytree(agbcc_src, agbcc_dst, dirs_exist_ok=True)
-
-            proc = subprocess.Popen(
-                [make_exe],
-                cwd=out,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=env,
-            )
-            for line in proc.stdout:
-                log(line.rstrip())
-            proc.wait()
-
-            if proc.returncode != 0:
-                raise RuntimeError(
-                    f"'make' failed with exit code {proc.returncode}. "
-                    "Check the log above for compiler errors."
-                )
-
-            # Find the ROM — Emerald typically outputs pokeemerald.gba
-            candidate = os.path.join(out, "pokeemerald.gba")
-            if os.path.isfile(candidate):
-                rom_path = candidate
-            else:
-                gba_files = [
-                    os.path.join(out, f) for f in os.listdir(out)
-                    if f.endswith(".gba")
-                ]
-                if gba_files:
-                    rom_path = sorted(gba_files)[-1]
-                    log(f"  (ROM found as: {os.path.basename(rom_path)})")
-                else:
-                    raise RuntimeError(
-                        "'make' succeeded but no .gba file found in the output directory."
-                    )
-
-            default_name = f"EmeraldLegacy_Randomized_{seed}.gba"
-            rom_path = _save_rom_with_dialog(rom_path, default_name, ".gba", log)
-
-        log("\n" + "=" * 56)
-        if build_rom and rom_path:
-            log("Done! ROM built successfully:")
-            log(f"  {rom_path}")
-        else:
-            log("Done! Randomized source saved to:")
-            log(f"  {out}")
-            log("\nTo compile the ROM, open Terminal in that folder and run:")
-            log("  make")
-            log("\nThe ROM will be: pokeemerald.gba")
-        log("=" * 56)
+        _log_finish(build_rom, rom_path, out, "pokeemerald.gba", log)
 
         with _state_lock:
             global _job_done
