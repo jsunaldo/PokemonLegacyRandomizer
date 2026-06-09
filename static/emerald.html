@@ -1695,8 +1695,15 @@ function _askCopies() {
 }
 
 let _bagItemCount = 0;
+// Gen 3 slot limits: bag Items pocket = 30, PC item storage = 50
+const _ITEM_SLOT_CAP = { bagItemList: 30, pcItemList: 50 };
 function _makeItemRow(listId, prefix, itemConst, qty) {
   if (!ITEM_POOL.length) { alert('Items not loaded yet.'); return; }
+  const cap = _ITEM_SLOT_CAP[listId] || 99;
+  if (document.getElementById(listId).children.length >= cap) {
+    alert(`Maximum ${cap} item slots for this list.`);
+    return;
+  }
   const id  = prefix + '_' + (++_bagItemCount);
   const qv  = qty !== undefined ? Math.min(99, Math.max(1, parseInt(qty) || 1)) : 1;
   const row = document.createElement('div');
@@ -1715,7 +1722,12 @@ function _makeItemRow(listId, prefix, itemConst, qty) {
 function _dupItemRow(id, listId, prefix) {
   const qty = parseInt(document.getElementById(id + '_qty')?.value || '1');
   const c   = _cbGetValue(id + '_cb');
-  const n   = _askCopies();
+  let n = _askCopies();
+  if (!n) return;
+  const cap   = _ITEM_SLOT_CAP[listId] || 99;
+  const avail = cap - document.getElementById(listId).children.length;
+  if (avail <= 0) { alert(`Maximum ${cap} item slots for this list.`); return; }
+  n = Math.min(n, avail);
   for (let i = 0; i < n; i++) _makeItemRow(listId, prefix, c, qty);
 }
 function addBagItem()  { _makeItemRow('bagItemList', 'bagItem'); }

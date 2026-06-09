@@ -18,7 +18,7 @@ from constants_emerald import (
     WILD_HELD_ITEM_POOL_GOOD, WILD_HELD_ITEM_POOL_FULL,
 )
 from parser_emerald import (
-    StarterSlot, TrainerParty, TrainerMon,
+    TrainerParty, TrainerMon,
     FieldItem, StaticEncounter, TMHMEntry, WildHeldItemEntry,
 )
 

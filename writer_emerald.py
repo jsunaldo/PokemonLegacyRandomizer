@@ -12,12 +12,7 @@ import re
 import shutil
 
 from constants_emerald import (
-    WILD_ENCOUNTERS_FILE, TRAINER_PARTIES_FILE, STARTERS_FILE,
-    TMHM_LEARNSETS_FILE, MAPS_DIR, HM_FIELD_NAMES,
-    ITEM_DATA_FILE,
-)
-from parser_emerald import (
-    StarterSlot, TrainerParty, FieldItem, StaticEncounter, TMHMEntry,
+    WILD_ENCOUNTERS_FILE, STARTERS_FILE, HM_FIELD_NAMES, ITEM_DATA_FILE,
 )
 
 
@@ -398,7 +393,7 @@ class EmeraldSourceWriter:
                 try:
                     with open(path, "r", encoding="utf-8", errors="replace") as fh:
                         contents = fh.read()
-                except Exception:
+                except OSError:
                     continue
                 if macro_re.search(contents) and label_substr.lower() in contents.lower():
                     target = path

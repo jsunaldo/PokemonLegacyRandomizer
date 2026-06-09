@@ -19,6 +19,7 @@ FILES = [
     "static_data.py", "item_data.py", "trade_data.py", "launcher_gui.py",
     "parser_yellow.py", "writer_yellow.py", "randomizer_engine_yellow.py", "constants_yellow.py",
     "parser_emerald.py", "writer_emerald.py", "randomizer_engine_emerald.py", "constants_emerald.py",
+    "spoiler_log.py",
 ]
 
 # Lines per chunk so a chunk + prompt + reply fits comfortably in NUM_CTX.

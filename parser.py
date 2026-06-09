@@ -911,7 +911,7 @@ class CrystalLegacyParser:
         try:
             with open(starter_file, 'r', encoding='utf-8', errors='replace') as fh:
                 lines = fh.readlines()
-        except Exception:
+        except OSError:
             return [], []
 
         dialogue_lines: list = []
@@ -1130,7 +1130,7 @@ class CrystalLegacyParser:
         try:
             with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                 lines = f.readlines()
-        except Exception:
+        except OSError:
             return [], {}
 
         entries   = []
@@ -1230,7 +1230,7 @@ class CrystalLegacyParser:
                 try:
                     with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                         lines = f.readlines()
-                except Exception:
+                except OSError:
                     continue
                 for i, line in enumerate(lines):
                     m = _RE.search(line)
@@ -1348,7 +1348,7 @@ class CrystalLegacyParser:
         try:
             with open(filepath, 'r', encoding='utf-8', errors='replace') as fh:
                 lines = fh.readlines()
-        except Exception:
+        except OSError:
             return []
 
         trades = []
@@ -1463,7 +1463,7 @@ class CrystalLegacyParser:
         try:
             with open(filepath, 'r', encoding='utf-8', errors='replace') as fh:
                 lines = fh.readlines()
-        except Exception:
+        except OSError:
             return []
 
         trades   = []
@@ -1511,7 +1511,7 @@ class CrystalLegacyParser:
         try:
             with open(filepath, 'r', encoding='utf-8', errors='replace') as fh:
                 lines = fh.readlines()
-        except Exception:
+        except OSError:
             return []
 
         trades = []
@@ -1613,7 +1613,7 @@ class CrystalLegacyParser:
                 try:
                     with open(full_path, 'r', encoding='utf-8', errors='replace') as fh:
                         lines = fh.readlines()
-                except Exception:
+                except OSError:
                     continue
 
                 last_label = ""
@@ -1717,7 +1717,7 @@ class CrystalLegacyParser:
             try:
                 with open(filepath, 'r', encoding='utf-8', errors='replace') as fh:
                     lines = fh.readlines()
-            except Exception:
+            except OSError:
                 continue
 
             for i, raw in enumerate(lines):
