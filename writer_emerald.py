@@ -161,41 +161,43 @@ class EmeraldSourceWriter:
     # Static encounters (setwildbattle lines)
     # -----------------------------------------------------------------------
 
-    def write_static_encounters(self, orig_statics: list, rand_statics: list):
-        """Patch setwildbattle SPECIES, LEVEL lines in map scripts, plus the
-        companion playmoncry line so the encounter cry matches."""
-        setwild_re = re.compile(
-            r"^(\s*setwildbattle\s+)(SPECIES_\w+)(\s*,\s*\d+.*)"
-        )
-        moncry_re = re.compile(r"^(\s*playmoncry\s+)(SPECIES_\w+)(.*)")
+    # Main-line patterns per static kind
+    _STATIC_LINE_RES = {
+        "battle": re.compile(r"^(\s*setwildbattle\s+)(SPECIES_\w+)(\s*,\s*\d+.*)"),
+        "gift":   re.compile(r"^(\s*givemon\s+)(SPECIES_\w+)(\s*,\s*\d+.*)"),
+        "egg":    re.compile(r"^(\s*giveegg\s+)(SPECIES_\w+)(.*)"),
+        "event":  re.compile(r"^(\s*seteventmon\s+)(SPECIES_\w+)(\s*,\s*\d+.*)"),
+    }
 
+    def write_static_encounters(self, orig_statics: list, rand_statics: list):
+        """Patch static Pokémon lines (setwildbattle / givemon / giveegg) in
+        event scripts, plus each one's companion lines (playmoncry, setvar,
+        bufferspeciesname, …) so cries and dialogue match the new species."""
         # Group by file
         file_patches: dict = {}
         for orig, rand in zip(orig_statics, rand_statics):
             out_abs = self._src_to_out(orig.source_file)
-            if out_abs not in file_patches:
-                file_patches[out_abs] = []
-            cry_line = getattr(orig, "cry_line", -1)
-            file_patches[out_abs].append((orig.line_index, cry_line, rand.species))
+            file_patches.setdefault(out_abs, []).append((orig, rand.species))
 
         patched = 0
         for out_abs, patches in file_patches.items():
             lines = self._get_lines(out_abs)
-            for li, cry_li, new_sp in patches:
+            for orig, new_sp in patches:
+                li = orig.line_index
                 if li >= len(lines):
                     continue
-                m = setwild_re.match(lines[li])
+                kind = getattr(orig, "kind", "battle")
+                m = self._STATIC_LINE_RES.get(kind, self._STATIC_LINE_RES["battle"]).match(lines[li])
                 if m:
                     lines[li] = m.group(1) + new_sp + m.group(3)
                     if not lines[li].endswith("\n"):
                         lines[li] += "\n"
                     patched += 1
-                if 0 <= cry_li < len(lines):
-                    mc = moncry_re.match(lines[cry_li])
-                    if mc:
-                        lines[cry_li] = mc.group(1) + new_sp + mc.group(3)
-                        if not lines[cry_li].endswith("\n"):
-                            lines[cry_li] += "\n"
+                # Companion lines: word-boundary replace of the old species
+                sp_re = re.compile(r"\b%s\b" % re.escape(orig.species))
+                for cl in getattr(orig, "companion_lines", []):
+                    if 0 <= cl < len(lines):
+                        lines[cl] = sp_re.sub(new_sp, lines[cl])
             self._write_lines(out_abs, lines)
 
         self._log(f"  Patched {patched} static encounter(s)")

@@ -84,14 +84,21 @@ class FieldItem:
 
 @dataclass
 class StaticEncounter:
-    """One setwildbattle SPECIES, LEVEL occurrence in a scripts.inc file."""
+    """One static Pokémon occurrence in an event script.
+
+    kind "battle": a `setwildbattle SPECIES_X, LEVEL` line
+    kind "gift":   a `givemon SPECIES_X, LEVEL[, ITEM]` line
+    kind "egg":    a `giveegg SPECIES_X` line
+
+    companion_lines are nearby lines referencing the same species
+    (playmoncry, setvar, bufferspeciesname, …) that must be patched
+    together with the main line so cries and dialogue text match."""
     species: str         # SPECIES_X constant
     level: int
     source_file: str
     line_index: int
-    # Companion `playmoncry SPECIES_X` line just above the battle (or -1).
-    # Patched together with the species so the encounter cry matches.
-    cry_line: int = -1
+    kind: str = "battle"
+    companion_lines: list = field(default_factory=list)
 
 
 @dataclass
@@ -378,13 +385,24 @@ class EmeraldLegacyParser:
 
     _FINDITEM_RE = re.compile(r"^\s*finditem\s+(ITEM_\w+)")
     _SETWILD_RE  = re.compile(r"^\s*setwildbattle\s+(SPECIES_\w+)\s*,\s*(\d+)")
-    _MONCRY_RE   = re.compile(r"^\s*playmoncry\s+(SPECIES_\w+)")
+    _GIVEMON_RE  = re.compile(r"^\s*givemon\s+(SPECIES_\w+)\s*,\s*(\d+)")
+    _GIVEEGG_RE  = re.compile(r"^\s*giveegg\s+(SPECIES_\w+)")
+    # Legacy's interactable event legendaries (Zapdos, Mew, Jirachi, …)
+    _SETEVENT_RE = re.compile(r"^\s*seteventmon\s+(SPECIES_\w+)\s*,\s*(\d+)")
 
     def _scan_script_lines(self, path: str, lines: list):
-        """Collect finditem field items and setwildbattle statics from one
-        event-script file. For each static, also record the companion
-        `playmoncry SAME_SPECIES` line just above it (so the encounter cry
-        can be patched to match the randomized species)."""
+        """Collect field items and static Pokémon (battles, gifts, eggs)
+        from one event-script file.
+
+        For each static, every other line in the file referencing the same
+        species (playmoncry, setvar, bufferspeciesname, showmonpic, …) is
+        recorded as a companion line and patched along with it, so cries,
+        pictures and dialogue match the randomized species. When a file has
+        several statics of the same species (e.g. multiple Voltorb), each
+        reference is assigned to the nearest one."""
+        statics_here = []
+        main_lines   = set()
+
         for li, ln in enumerate(lines):
             mf = self._FINDITEM_RE.match(ln)
             if mf:
@@ -393,24 +411,46 @@ class EmeraldLegacyParser:
                     source_file=path,
                     line_index=li,
                 ))
+                continue
+
             ms = self._SETWILD_RE.match(ln)
+            mg = self._GIVEMON_RE.match(ln)
+            me = self._GIVEEGG_RE.match(ln)
+            mv = self._SETEVENT_RE.match(ln)
             if ms:
-                species  = ms.group(1)
-                cry_line = -1
-                for back in range(1, 9):
-                    if li - back < 0:
-                        break
-                    mc = self._MONCRY_RE.match(lines[li - back])
-                    if mc and mc.group(1) == species:
-                        cry_line = li - back
-                        break
-                self.static_encounters.append(StaticEncounter(
-                    species=species,
-                    level=int(ms.group(2)),
-                    source_file=path,
-                    line_index=li,
-                    cry_line=cry_line,
-                ))
+                ent = StaticEncounter(species=ms.group(1), level=int(ms.group(2)),
+                                      source_file=path, line_index=li, kind="battle")
+            elif mg:
+                ent = StaticEncounter(species=mg.group(1), level=int(mg.group(2)),
+                                      source_file=path, line_index=li, kind="gift")
+            elif me:
+                # Eggs hatch at a fixed level; 5 keeps BST weighting sensible
+                ent = StaticEncounter(species=me.group(1), level=5,
+                                      source_file=path, line_index=li, kind="egg")
+            elif mv:
+                ent = StaticEncounter(species=mv.group(1), level=int(mv.group(2)),
+                                      source_file=path, line_index=li, kind="event")
+            else:
+                continue
+            statics_here.append(ent)
+            main_lines.add(li)
+
+        # Companion scan: every other same-species reference in the file,
+        # assigned to the nearest static of that species.
+        by_species: dict = {}
+        for ent in statics_here:
+            by_species.setdefault(ent.species, []).append(ent)
+
+        for species, ents in by_species.items():
+            sp_re = re.compile(r"\b%s\b" % re.escape(species))
+            for li, ln in enumerate(lines):
+                if li in main_lines:
+                    continue
+                if sp_re.search(ln):
+                    nearest = min(ents, key=lambda e: abs(e.line_index - li))
+                    nearest.companion_lines.append(li)
+
+        self.static_encounters.extend(statics_here)
 
     def _parse_map_scripts(self):
         maps_dir = self._path(MAPS_DIR)
