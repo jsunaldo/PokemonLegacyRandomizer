@@ -89,6 +89,9 @@ class StaticEncounter:
     level: int
     source_file: str
     line_index: int
+    # Companion `playmoncry SPECIES_X` line just above the battle (or -1).
+    # Patched together with the species so the encounter cry matches.
+    cry_line: int = -1
 
 
 @dataclass
@@ -373,8 +376,41 @@ class EmeraldLegacyParser:
     # Map scripts: field items + static encounters
     # -----------------------------------------------------------------------
 
-    # Centralized item-ball scripts (one finditem per overworld item ball)
-    ITEM_BALL_SCRIPTS_FILE = os.path.join("data", "scripts", "item_ball_scripts.inc")
+    _FINDITEM_RE = re.compile(r"^\s*finditem\s+(ITEM_\w+)")
+    _SETWILD_RE  = re.compile(r"^\s*setwildbattle\s+(SPECIES_\w+)\s*,\s*(\d+)")
+    _MONCRY_RE   = re.compile(r"^\s*playmoncry\s+(SPECIES_\w+)")
+
+    def _scan_script_lines(self, path: str, lines: list):
+        """Collect finditem field items and setwildbattle statics from one
+        event-script file. For each static, also record the companion
+        `playmoncry SAME_SPECIES` line just above it (so the encounter cry
+        can be patched to match the randomized species)."""
+        for li, ln in enumerate(lines):
+            mf = self._FINDITEM_RE.match(ln)
+            if mf:
+                self.field_items.append(FieldItem(
+                    item_const=mf.group(1),
+                    source_file=path,
+                    line_index=li,
+                ))
+            ms = self._SETWILD_RE.match(ln)
+            if ms:
+                species  = ms.group(1)
+                cry_line = -1
+                for back in range(1, 9):
+                    if li - back < 0:
+                        break
+                    mc = self._MONCRY_RE.match(lines[li - back])
+                    if mc and mc.group(1) == species:
+                        cry_line = li - back
+                        break
+                self.static_encounters.append(StaticEncounter(
+                    species=species,
+                    level=int(ms.group(2)),
+                    source_file=path,
+                    line_index=li,
+                    cry_line=cry_line,
+                ))
 
     def _parse_map_scripts(self):
         maps_dir = self._path(MAPS_DIR)
@@ -382,28 +418,25 @@ class EmeraldLegacyParser:
             self._log(f"    [WARN] Maps directory not found: {maps_dir}")
             return
 
-        finditem_re   = re.compile(r"^\s*finditem\s+(ITEM_\w+)")
-        setwild_re    = re.compile(
-            r"^\s*setwildbattle\s+(SPECIES_\w+)\s*,\s*(\d+)"
-        )
         # Hidden items: `"item": "ITEM_X",` lines inside hidden_item bg_events.
         # In map.json only hidden-item events carry an "item" key.
-        hidden_re     = re.compile(r'^\s*"item":\s*"(ITEM_\w+)"')
+        hidden_re = re.compile(r'^\s*"item":\s*"(ITEM_\w+)"')
 
-        # Item balls live centrally in data/scripts/item_ball_scripts.inc
-        ball_f = self._path(self.ITEM_BALL_SCRIPTS_FILE)
-        if os.path.isfile(ball_f):
-            with open(ball_f, "r", encoding="utf-8", errors="replace") as f:
-                for li, ln in enumerate(f.readlines()):
-                    mf = finditem_re.match(ln)
-                    if mf:
-                        self.field_items.append(FieldItem(
-                            item_const=mf.group(1),
-                            source_file=ball_f,
-                            line_index=li,
-                        ))
+        # Shared event scripts (item balls, Kecleon roadblocks, …) live in
+        # data/scripts/*.inc rather than in any single map's scripts.inc.
+        scripts_dir = self._path(os.path.join("data", "scripts"))
+        if os.path.isdir(scripts_dir):
+            for fn in sorted(os.listdir(scripts_dir)):
+                if not fn.endswith(".inc"):
+                    continue
+                shared_f = os.path.join(scripts_dir, fn)
+                try:
+                    with open(shared_f, "r", encoding="utf-8", errors="replace") as f:
+                        self._scan_script_lines(shared_f, f.readlines())
+                except OSError:
+                    continue
         else:
-            self._log(f"    [WARN] item_ball_scripts.inc not found: {ball_f}")
+            self._log(f"    [WARN] Shared scripts directory not found: {scripts_dir}")
 
         hidden_count = 0
         for map_name in sorted(os.listdir(maps_dir)):
@@ -414,26 +447,9 @@ class EmeraldLegacyParser:
             if os.path.isfile(script_f):
                 try:
                     with open(script_f, "r", encoding="utf-8", errors="replace") as f:
-                        script_lines = f.readlines()
+                        self._scan_script_lines(script_f, f.readlines())
                 except OSError:
-                    script_lines = []
-
-                for li, ln in enumerate(script_lines):
-                    mf = finditem_re.match(ln)
-                    if mf:
-                        self.field_items.append(FieldItem(
-                            item_const=mf.group(1),
-                            source_file=script_f,
-                            line_index=li,
-                        ))
-                    ms = setwild_re.match(ln)
-                    if ms:
-                        self.static_encounters.append(StaticEncounter(
-                            species=ms.group(1),
-                            level=int(ms.group(2)),
-                            source_file=script_f,
-                            line_index=li,
-                        ))
+                    pass
 
             # hidden items in map.json
             json_f = os.path.join(map_path, "map.json")

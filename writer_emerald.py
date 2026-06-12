@@ -162,22 +162,26 @@ class EmeraldSourceWriter:
     # -----------------------------------------------------------------------
 
     def write_static_encounters(self, orig_statics: list, rand_statics: list):
-        """Patch setwildbattle SPECIES, LEVEL lines in map scripts."""
+        """Patch setwildbattle SPECIES, LEVEL lines in map scripts, plus the
+        companion playmoncry line so the encounter cry matches."""
         setwild_re = re.compile(
             r"^(\s*setwildbattle\s+)(SPECIES_\w+)(\s*,\s*\d+.*)"
         )
+        moncry_re = re.compile(r"^(\s*playmoncry\s+)(SPECIES_\w+)(.*)")
+
         # Group by file
         file_patches: dict = {}
         for orig, rand in zip(orig_statics, rand_statics):
             out_abs = self._src_to_out(orig.source_file)
             if out_abs not in file_patches:
                 file_patches[out_abs] = []
-            file_patches[out_abs].append((orig.line_index, rand.species))
+            cry_line = getattr(orig, "cry_line", -1)
+            file_patches[out_abs].append((orig.line_index, cry_line, rand.species))
 
         patched = 0
         for out_abs, patches in file_patches.items():
             lines = self._get_lines(out_abs)
-            for li, new_sp in patches:
+            for li, cry_li, new_sp in patches:
                 if li >= len(lines):
                     continue
                 m = setwild_re.match(lines[li])
@@ -186,6 +190,12 @@ class EmeraldSourceWriter:
                     if not lines[li].endswith("\n"):
                         lines[li] += "\n"
                     patched += 1
+                if 0 <= cry_li < len(lines):
+                    mc = moncry_re.match(lines[cry_li])
+                    if mc:
+                        lines[cry_li] = mc.group(1) + new_sp + mc.group(3)
+                        if not lines[cry_li].endswith("\n"):
+                            lines[cry_li] += "\n"
             self._write_lines(out_abs, lines)
 
         self._log(f"  Patched {patched} static encounter(s)")
