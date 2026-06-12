@@ -1690,6 +1690,8 @@ function onStartItemsChange() {
 let _bagItemCount = 0;
 // Gen 3 slot limits: bag Items pocket = 30, PC item storage = 50
 const _ITEM_SLOT_CAP = { bagItemList: 30, pcItemList: 50 };
+// Gen 3 stack limits: bag 99 (MAX_BAG_ITEM_CAPACITY), PC 999 (MAX_PC_ITEM_CAPACITY)
+const _ITEM_QTY_CAP  = { bagItemList: 99, pcItemList: 999 };
 function _makeItemRow(listId, prefix, itemConst, qty) {
   if (!ITEM_POOL.length) { alert('Items not loaded yet.'); return; }
   const cap = _ITEM_SLOT_CAP[listId] || 99;
@@ -1697,14 +1699,15 @@ function _makeItemRow(listId, prefix, itemConst, qty) {
     alert(`Maximum ${cap} item slots for this list.`);
     return;
   }
+  const qcap = _ITEM_QTY_CAP[listId] || 99;
   const id  = prefix + '_' + (++_bagItemCount);
-  const qv  = qty !== undefined ? Math.min(99, Math.max(1, parseInt(qty) || 1)) : 1;
+  const qv  = qty !== undefined ? Math.min(qcap, Math.max(1, parseInt(qty) || 1)) : 1;
   const row = document.createElement('div');
   row.className = 'item-row';
   row.id = id + '_row';
   row.innerHTML = `
-    <input type="number" min="1" max="99" value="${qv}" id="${id}_qty" style="width:60px"
-      oninput="if(+this.value>99)this.value=99;if(this.value&&+this.value<1)this.value=1">
+    <input type="number" min="1" max="${qcap}" value="${qv}" id="${id}_qty" style="width:60px"
+      oninput="if(+this.value>${qcap})this.value=${qcap};if(this.value&&+this.value<1)this.value=1">
     <div id="${id}_cb" style="flex:1"></div>
     <button class="btn-dup" title="Duplicate this row" onclick="_dupItemRow('${id}','${listId}','${prefix}')">⧉</button>
     <button class="btn-remove" onclick="document.getElementById('${id}_row').remove()">✕</button>`;

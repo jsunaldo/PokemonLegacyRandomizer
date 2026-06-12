@@ -70,10 +70,16 @@ class WildHeldItemEntry:
 
 @dataclass
 class FieldItem:
-    """One finditem ITEM_X occurrence in a scripts.inc file."""
+    """One field item occurrence.
+
+    kind "finditem": a `finditem ITEM_X` line in a .inc script
+         (item balls live centrally in data/scripts/item_ball_scripts.inc).
+    kind "hidden":   an `"item": "ITEM_X"` line of a hidden_item bg_event
+         in a map.json file."""
     item_const: str      # e.g. "ITEM_POTION"
-    source_file: str     # absolute path to scripts.inc
+    source_file: str     # absolute path to the .inc / map.json file
     line_index: int      # 0-based line index
+    kind: str = "finditem"
 
 
 @dataclass
@@ -367,6 +373,9 @@ class EmeraldLegacyParser:
     # Map scripts: field items + static encounters
     # -----------------------------------------------------------------------
 
+    # Centralized item-ball scripts (one finditem per overworld item ball)
+    ITEM_BALL_SCRIPTS_FILE = os.path.join("data", "scripts", "item_ball_scripts.inc")
+
     def _parse_map_scripts(self):
         maps_dir = self._path(MAPS_DIR)
         if not os.path.isdir(maps_dir):
@@ -377,37 +386,76 @@ class EmeraldLegacyParser:
         setwild_re    = re.compile(
             r"^\s*setwildbattle\s+(SPECIES_\w+)\s*,\s*(\d+)"
         )
+        # Hidden items: `"item": "ITEM_X",` lines inside hidden_item bg_events.
+        # In map.json only hidden-item events carry an "item" key.
+        hidden_re     = re.compile(r'^\s*"item":\s*"(ITEM_\w+)"')
 
+        # Item balls live centrally in data/scripts/item_ball_scripts.inc
+        ball_f = self._path(self.ITEM_BALL_SCRIPTS_FILE)
+        if os.path.isfile(ball_f):
+            with open(ball_f, "r", encoding="utf-8", errors="replace") as f:
+                for li, ln in enumerate(f.readlines()):
+                    mf = finditem_re.match(ln)
+                    if mf:
+                        self.field_items.append(FieldItem(
+                            item_const=mf.group(1),
+                            source_file=ball_f,
+                            line_index=li,
+                        ))
+        else:
+            self._log(f"    [WARN] item_ball_scripts.inc not found: {ball_f}")
+
+        hidden_count = 0
         for map_name in sorted(os.listdir(maps_dir)):
             map_path  = os.path.join(maps_dir, map_name)
+
+            # finditem / setwildbattle in the per-map scripts.inc
             script_f  = os.path.join(map_path, "scripts.inc")
-            if not os.path.isfile(script_f):
-                continue
+            if os.path.isfile(script_f):
+                try:
+                    with open(script_f, "r", encoding="utf-8", errors="replace") as f:
+                        script_lines = f.readlines()
+                except OSError:
+                    script_lines = []
 
-            try:
-                with open(script_f, "r", encoding="utf-8", errors="replace") as f:
-                    script_lines = f.readlines()
-            except OSError:
-                continue
+                for li, ln in enumerate(script_lines):
+                    mf = finditem_re.match(ln)
+                    if mf:
+                        self.field_items.append(FieldItem(
+                            item_const=mf.group(1),
+                            source_file=script_f,
+                            line_index=li,
+                        ))
+                    ms = setwild_re.match(ln)
+                    if ms:
+                        self.static_encounters.append(StaticEncounter(
+                            species=ms.group(1),
+                            level=int(ms.group(2)),
+                            source_file=script_f,
+                            line_index=li,
+                        ))
 
-            for li, ln in enumerate(script_lines):
-                mf = finditem_re.match(ln)
-                if mf:
-                    self.field_items.append(FieldItem(
-                        item_const=mf.group(1),
-                        source_file=script_f,
-                        line_index=li,
-                    ))
-                ms = setwild_re.match(ln)
-                if ms:
-                    self.static_encounters.append(StaticEncounter(
-                        species=ms.group(1),
-                        level=int(ms.group(2)),
-                        source_file=script_f,
-                        line_index=li,
-                    ))
+            # hidden items in map.json
+            json_f = os.path.join(map_path, "map.json")
+            if os.path.isfile(json_f):
+                try:
+                    with open(json_f, "r", encoding="utf-8", errors="replace") as f:
+                        json_lines = f.readlines()
+                except OSError:
+                    continue
+                for li, ln in enumerate(json_lines):
+                    mh = hidden_re.match(ln)
+                    if mh:
+                        self.field_items.append(FieldItem(
+                            item_const=mh.group(1),
+                            source_file=json_f,
+                            line_index=li,
+                            kind="hidden",
+                        ))
+                        hidden_count += 1
 
-        self._log(f"    Found {len(self.field_items)} field item(s), "
+        self._log(f"    Found {len(self.field_items)} field item(s) "
+                  f"({hidden_count} hidden), "
                   f"{len(self.static_encounters)} static encounter(s)")
 
     # -----------------------------------------------------------------------
