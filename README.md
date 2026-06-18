@@ -138,3 +138,12 @@ The built app lands in `dist/PokemonLegacyRandomizer.app`, with a zippable `Poke
 
 - **Legacy ROM hacks** by [SmithPlaysPokemon](https://www.youtube.com/@smithplayspokemon) and contributors (repos hosted by [cRz-Shadows](https://github.com/cRz-Shadows)).
 - Built on the [pret](https://github.com/pret) disassemblies (pokeyellow / pokecrystal / pokeemerald).
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE) — free to use, modify, and share.
+
+This is a fan-made tool that patches **your own** copy of each Legacy ROM hack's
+source code. It contains no game ROMs or copyrighted game assets.
