@@ -386,6 +386,12 @@ def _save_rom_with_dialog(rom_path: str, default_name: str, ext: str, log) -> st
 
     Returns the final path the ROM lives at.
     """
+    # Headless/automation mode (smoke tests, CI) and non-macOS platforms:
+    # skip the native dialog and leave the ROM where the build put it.
+    if os.environ.get("RANDOMIZER_NO_DIALOG") or sys.platform != "darwin":
+        log(f"\nROM saved at: {rom_path}")
+        return rom_path
+
     log("\nChoose where to save the ROM…  (a Save dialog should appear — "
         "check behind other windows if you don't see it)")
 
@@ -658,6 +664,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
 # Shared pipeline helpers (used by all three game handlers)
 # ---------------------------------------------------------------------------
 
+# Wire-format aliases: the three game UIs (and their historical saved-settings
+# files) spell some keys differently. Normalize both directions so any saved
+# settings file works with any game handler.
+_SETTINGS_ALIASES = [
+    ("startingItemsEnable", "startItemsEnable"),
+    ("startingBagItems",    "startBagItems"),
+    ("startingPCItems",     "startPcItems"),
+]
+
+
+def _normalize_settings(data: dict) -> dict:
+    for a, b in _SETTINGS_ALIASES:
+        if a in data and b not in data:
+            data[b] = data[a]
+        elif b in data and a not in data:
+            data[a] = data[b]
+    return data
+
+
 def _prep_job(data: dict):
     """Validate source/output dirs and resolve the seed.
 
@@ -809,6 +834,7 @@ def _run_randomizer(data: dict):
         _append_log(msg)
 
     try:
+        data = _normalize_settings(data)
         src, out, seed = _prep_job(data)
 
         log("=" * 56)
@@ -1137,6 +1163,7 @@ def _run_randomizer_yellow(data: dict):
         _append_log(msg)
 
     try:
+        data = _normalize_settings(data)
         src, out, seed = _prep_job(data)
 
         log("=" * 56)
@@ -1400,6 +1427,7 @@ def _run_randomizer_emerald(data: dict):
         _append_log(msg)
 
     try:
+        data = _normalize_settings(data)
         src, out, seed = _prep_job(data)
 
         log("=" * 56)

@@ -88,8 +88,8 @@ class StarterLocation:
 class InGameTrade:
     """One in-game trade from data/events/trades.asm."""
     source_file: str
-    give_species: str   # species player RECEIVES
-    get_species: str    # species player GIVES
+    given_species: str   # species player RECEIVES
+    requested_species: str    # species player GIVES
     dialog_id: str
     nickname: str
     line_index: int     # 0-based index in source file
@@ -610,7 +610,7 @@ class YellowLegacyParser:
                 if give in POKEMON_CONSTANTS and get in POKEMON_CONSTANTS:
                     self.trades.append(InGameTrade(
                         source_file=rel,
-                        give_species=give, get_species=get,
+                        given_species=give, requested_species=get,
                         dialog_id=dlg, nickname=nick,
                         line_index=i, full_line=line,
                     ))

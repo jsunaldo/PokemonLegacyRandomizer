@@ -351,17 +351,17 @@ class YellowSourceWriter:
             line = lines[i]
 
             # Replace give species
-            if rand.give_species != orig.give_species:
+            if rand.given_species != orig.given_species:
                 line = re.sub(
-                    r'\b' + re.escape(orig.give_species) + r'\b',
-                    rand.give_species, line, count=1,
+                    r'\b' + re.escape(orig.given_species) + r'\b',
+                    rand.given_species, line, count=1,
                 )
 
             # Replace get species (second occurrence)
-            if rand.get_species != orig.get_species:
+            if rand.requested_species != orig.requested_species:
                 line = re.sub(
-                    r'\b' + re.escape(orig.get_species) + r'\b',
-                    rand.get_species, line, count=1,
+                    r'\b' + re.escape(orig.requested_species) + r'\b',
+                    rand.requested_species, line, count=1,
                 )
 
             # Replace nickname.

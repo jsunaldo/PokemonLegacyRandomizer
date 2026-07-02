@@ -146,10 +146,8 @@ def _held_items_section(sp, orig, new):
 
 
 def _trade_given(t):
-    # Crystal: given_species | Emerald: species | Yellow: give_species
-    return (getattr(t, "given_species", None)
-            or getattr(t, "give_species", None)
-            or getattr(t, "species", None))
+    # Crystal/Yellow: given_species | Emerald: species (mirrors the C struct)
+    return getattr(t, "given_species", None) or getattr(t, "species", None)
 
 
 def _trades_section(sp, orig, new):

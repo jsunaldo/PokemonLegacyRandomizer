@@ -430,13 +430,13 @@ class YellowRandomizerEngine:
 
             if s.trade_mode in ("given_only", "both"):
                 new_id              = self._pick(pool)
-                new_trade.give_species = POKEMON_CONST_NAMES.get(new_id, trade.give_species)
-                self.log(f"  Trade give: {trade.give_species} → {new_trade.give_species}")
+                new_trade.given_species = POKEMON_CONST_NAMES.get(new_id, trade.given_species)
+                self.log(f"  Trade give: {trade.given_species} → {new_trade.given_species}")
 
             if s.trade_mode == "both":
                 new_id              = self._pick(pool)
-                new_trade.get_species = POKEMON_CONST_NAMES.get(new_id, trade.get_species)
-                self.log(f"  Trade get:  {trade.get_species} → {new_trade.get_species}")
+                new_trade.requested_species = POKEMON_CONST_NAMES.get(new_id, trade.requested_species)
+                self.log(f"  Trade get:  {trade.requested_species} → {new_trade.requested_species}")
 
             if s.trade_random_nicknames:
                 new_trade.nickname = self.rng.choice(self._NICKNAME_POOL)[:10]
