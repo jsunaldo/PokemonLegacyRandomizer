@@ -1010,10 +1010,11 @@
           </div>
           <div class="how-req-card">
             <div class="req-icon">🔧</div>
-            <div class="req-title">RGBDS 0.6.0+ <span class="badge badge-yellow">v0.6.0 or newer</span></div>
+            <div class="req-title">RGBDS <span class="badge badge-green">installed automatically</span></div>
             <div class="req-desc">The assembler/linker that compiles the ASM source into a .gb ROM.
-              Yellow Legacy requires <strong>v0.6.0 or newer</strong> (not the older 0.5.2 used by Crystal Legacy).<br>
-              <a href="https://github.com/gbdev/rgbds/releases" style="color:var(--accent)">github.com/gbdev/rgbds/releases</a>
+              On macOS the app downloads and caches <strong>v0.7.0</strong> (the version Yellow Legacy needs —
+              0.8+ breaks its syntax) on your first build. Nothing to install, and it never conflicts with
+              Crystal Legacy's older 0.5.2, which is cached separately.
             </div>
           </div>
           <div class="how-req-card">
@@ -1045,10 +1046,10 @@
         <div class="how-step">
           <div class="step-num">2</div>
           <div class="step-body">
-            <h3>Install RGBDS 0.6.0+</h3>
-            <p>Download the macOS binary for <strong>v0.6.0 or newer</strong> from <a href="https://github.com/gbdev/rgbds/releases" style="color:var(--accent)">github.com/gbdev/rgbds/releases</a>, unzip it, then in Terminal:</p>
-            <p><code>sudo cp rgbasm rgblink rgbfix rgbgfx /usr/local/bin/</code></p>
-            <div class="how-note">⚠️ <strong>Yellow Legacy requires RGBDS 0.6.0 or newer.</strong> If you also use Crystal Legacy (which needs the older 0.5.2), you'll need to swap the binaries in <code>/usr/local/bin/</code> when switching between games.</div>
+            <h3>Install the build tools (one command)</h3>
+            <p>Only Apple's command-line tools are needed for <code>make</code>. In Terminal:</p>
+            <p><code>xcode-select --install</code></p>
+            <div class="how-note">✅ <strong>RGBDS is handled for you.</strong> On your first build the app automatically downloads RGBDS v0.7.0 (the version Yellow Legacy needs) into its own cache — no manual install, and no binary-swapping when you switch between Yellow and Crystal.</div>
           </div>
         </div>
 
@@ -1208,6 +1209,20 @@
           <li><strong>The log panel shows exactly what changed.</strong> Click <em>▶ Show Log</em> at the bottom of the window to see every species replacement and compiler line. If the build fails, the error will appear there.</li>
           <li><strong>The .gb file</strong> works in any GB-compatible emulator (mGBA, BGB, RetroArch) and on real hardware via an EZ-Flash or similar flash cartridge.</li>
         </ul>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🖥️ Windows / Linux (experimental)</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.7">
+          The packaged app and the automatic toolchain install are macOS-only, but the randomizer
+          itself is a local web app and runs anywhere Python 3 does:
+        </p>
+        <p><code>git clone https://github.com/jsunaldo/PokemonLegacyRandomizer.git</code><br>
+           <code>cd PokemonLegacyRandomizer &amp;&amp; python3 main.py</code></p>
+        <p style="font-size:13px;color:var(--muted);line-height:1.7">
+          You'll need to install <a href="https://rgbds.gbdev.io/install" target="_blank" style="color:var(--accent)">RGBDS v0.7.0</a> yourself and make sure <code>rgbasm</code> is on your PATH, plus GNU Make. The folder picker and save dialog are macOS-only —
+          type paths directly into the directory fields, and the built ROM stays in your Output Directory.
+        </p>
       </div>
 
     </div>

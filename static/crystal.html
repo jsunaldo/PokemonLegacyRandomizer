@@ -1190,10 +1190,10 @@
           </div>
           <div class="how-req-card">
             <div class="req-icon">🔧</div>
-            <div class="req-title">RGBDS v0.5.2 <span class="badge badge-yellow">exact version</span></div>
+            <div class="req-title">RGBDS <span class="badge badge-green">installed automatically</span></div>
             <div class="req-desc">The assembler/linker that compiles the ASM source into a .gbc ROM.
-              Crystal Legacy requires <strong>exactly v0.5.2</strong> — newer versions (1.x) have breaking syntax changes.<br>
-              <a href="https://github.com/gbdev/rgbds/releases/tag/v0.5.2" style="color:var(--accent)">Download v0.5.2</a>
+              On macOS the app downloads and caches <strong>exactly v0.5.2</strong> (the version Crystal Legacy
+              needs) on your first build — nothing to install, and it never conflicts with other RGBDS versions.
             </div>
           </div>
           <div class="how-req-card">
@@ -1226,10 +1226,10 @@
         <div class="how-step">
           <div class="step-num">2</div>
           <div class="step-body">
-            <h3>Install RGBDS v0.5.2</h3>
-            <p>Download the macOS binary from <a href="https://github.com/gbdev/rgbds/releases/tag/v0.5.2" style="color:var(--accent)">github.com/gbdev/rgbds/releases/tag/v0.5.2</a> (file: <code>rgbds-0.5.2-macos-x86-64.zip</code>), unzip it, then in Terminal:</p>
-            <p><code>sudo cp rgbasm rgblink rgbfix rgbgfx /usr/local/bin/</code></p>
-            <div class="how-note">⚠️ <strong>Do not install the latest RGBDS.</strong> Crystal Legacy compiles only with v0.5.2. If you already have a newer version you'll need to replace it with 0.5.2.</div>
+            <h3>Install the build tools (one command)</h3>
+            <p>Only Apple's command-line tools are needed for <code>make</code>. In Terminal:</p>
+            <p><code>xcode-select --install</code></p>
+            <div class="how-note">✅ <strong>RGBDS is handled for you.</strong> On your first build the app automatically downloads RGBDS v0.5.2 (the exact version Crystal Legacy needs) into its own cache — no manual install, no version conflicts with other games.</div>
           </div>
         </div>
 
@@ -1399,6 +1399,20 @@
           <li><strong>Playing without a real-time clock?</strong> Most emulators need to be configured with a clock, or use one that supports it (mGBA does). If you play without a clock, uncheck <em>Use Time-Based Encounters</em> so morning/day/night slots all show the same Pokémon.</li>
           <li><strong>The .gbc file</strong> works in any GBC-compatible emulator (mGBA, BGB, RetroArch) and on real hardware via an EZ-Flash or similar flash cartridge.</li>
         </ul>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🖥️ Windows / Linux (experimental)</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.7">
+          The packaged app and the automatic toolchain install are macOS-only, but the randomizer
+          itself is a local web app and runs anywhere Python 3 does:
+        </p>
+        <p><code>git clone https://github.com/jsunaldo/PokemonLegacyRandomizer.git</code><br>
+           <code>cd PokemonLegacyRandomizer &amp;&amp; python3 main.py</code></p>
+        <p style="font-size:13px;color:var(--muted);line-height:1.7">
+          You'll need to install <a href="https://rgbds.gbdev.io/install" target="_blank" style="color:var(--accent)">RGBDS v0.5.2</a> yourself and make sure <code>rgbasm</code> is on your PATH, plus GNU Make. The folder picker and save dialog are macOS-only —
+          type paths directly into the directory fields, and the built ROM stays in your Output Directory.
+        </p>
       </div>
 
     </div>

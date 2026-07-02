@@ -1094,10 +1094,10 @@
         <div class="how-req-grid">
           <div class="how-req-card">
             <div class="req-icon">🛠️</div>
-            <div class="req-title">devkitARM</div>
+            <div class="req-title">GBA toolchain <span class="badge" style="background:rgba(76,175,125,.15);color:var(--accent);border:1px solid rgba(76,175,125,.35)">installed automatically</span></div>
             <div class="req-desc">
-              Required to build the ROM after randomizing.<br>
-              <a href="https://devkitpro.org/wiki/Getting_Started" target="_blank">devkitpro.org → Getting Started</a>
+              devkitARM + agbcc compile the ROM after randomizing. On macOS the app downloads and
+              sets both up automatically on your first build — nothing to install manually.
             </div>
           </div>
           <div class="how-req-card">
@@ -1110,9 +1110,9 @@
           </div>
         </div>
         <div class="how-note info" style="margin-top:12px">
-          <strong>Platform note:</strong> This randomizer runs locally on your Mac and compiles the ROM
-          using devkitARM. Building a GBA ROM requires the ARM cross-compiler — see the
-          <a href="https://devkitpro.org/wiki/Getting_Started" target="_blank" style="color:var(--accent)">devkitPro Getting Started guide</a>.
+          <strong>Platform note:</strong> On macOS everything is automatic — the app installs
+          devkitARM and agbcc into its own cache on the first build (one-time, a few minutes).
+          You only need Apple's command-line tools for <code>make</code>: <code>xcode-select --install</code>.
         </div>
       </div>
 
@@ -1176,6 +1176,20 @@
           <li><strong>Easier Trade Evolutions</strong> — also recommended. Without it, trade-evolving Pokémon (Kadabra → Alakazam, etc.) can only be obtained pre-evolved.</li>
           <li><strong>Wild data</strong> is stored in a single JSON file (<code>src/data/wild_encounters.json</code>), making randomization fast and reliable.</li>
         </ul>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🖥️ Windows / Linux (experimental)</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.7">
+          The packaged app and the automatic toolchain install are macOS-only, but the randomizer
+          itself is a local web app and runs anywhere Python 3 does:
+        </p>
+        <p><code>git clone https://github.com/jsunaldo/PokemonLegacyRandomizer.git</code><br>
+           <code>cd PokemonLegacyRandomizer &amp;&amp; python3 main.py</code></p>
+        <p style="font-size:13px;color:var(--muted);line-height:1.7">
+          You'll need to install <a href="https://devkitpro.org/wiki/Getting_Started" target="_blank" style="color:var(--accent)">devkitARM</a> and <a href="https://github.com/pret/agbcc" target="_blank" style="color:var(--accent)">agbcc</a> yourself, plus GNU Make. The folder picker and save dialog are macOS-only —
+          type paths directly into the directory fields, and the built ROM stays in your Output Directory.
+        </p>
       </div>
 
     </div><!-- /panel-howto -->
