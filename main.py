@@ -10,6 +10,7 @@ Requires only Python 3.6+ stdlib — no pip installs needed.
 import http.server
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -725,6 +726,51 @@ def _normalize_settings(data: dict) -> dict:
     return data
 
 
+# Per-game source fingerprints: the file each parser fundamentally needs.
+_SOURCE_FINGERPRINTS = {
+    "crystal": ("Crystal Legacy", os.path.join("data", "wild", "johto_grass.asm")),
+    "yellow":  ("Yellow Legacy",  os.path.join("data", "wild", "grass_water.asm")),
+    "emerald": ("Emerald Legacy", os.path.join("src", "data", "wild_encounters.json")),
+}
+
+
+def _validate_source(game: str, src: str):
+    """Check the source dir actually contains this game's source tree.
+
+    Raises ValueError with a helpful message when the folder is a different
+    game's source, a parent folder of the real repo, or not a source at all."""
+    name, marker = _SOURCE_FINGERPRINTS[game]
+    if os.path.isfile(os.path.join(src, marker)):
+        return
+
+    # Is it one of the OTHER games' sources?
+    for other, (other_name, other_marker) in _SOURCE_FINGERPRINTS.items():
+        if other != game and os.path.isfile(os.path.join(src, other_marker)):
+            raise ValueError(
+                f"The Source Directory looks like {other_name} source, but this "
+                f"is the {name} randomizer. Pick the {name} repo folder "
+                f"(or switch to the {other_name} randomizer)."
+            )
+
+    # Is the real repo one level down (user picked the parent folder)?
+    try:
+        for entry in sorted(os.listdir(src)):
+            cand = os.path.join(src, entry)
+            if os.path.isdir(cand) and os.path.isfile(os.path.join(cand, marker)):
+                raise ValueError(
+                    f"The Source Directory doesn't contain {name} source, but the "
+                    f"folder inside it does — set the Source Directory to:\n  {cand}"
+                )
+    except OSError:
+        pass
+
+    raise ValueError(
+        f"The Source Directory doesn't look like {name} source "
+        f"(missing {marker}). It should be the repo root — the folder that "
+        f"contains the Makefile."
+    )
+
+
 def _prep_job(data: dict):
     """Validate source/output dirs and resolve the seed.
 
@@ -812,15 +858,43 @@ def _run_make_build(out: str, log, kind: str, rgbds_version=None):
         text=True,
         env=env,
     )
+    captured = []
     for line in proc.stdout:
-        log(line.rstrip())
+        line = line.rstrip()
+        captured.append(line)
+        log(line)
     proc.wait()
 
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"'make' failed with exit code {proc.returncode}. "
-            "Check the log above for compiler errors."
-        )
+        raise RuntimeError(_summarize_build_failure(captured, proc.returncode))
+
+
+# Patterns that mark a real compiler/assembler error line in a make log.
+_BUILD_ERR_RE = re.compile(
+    r"(^|\s)(error|fatal error)[: ]|^ERROR:|undefined (symbol|reference)|"
+    r"syntax error|No such file or directory", re.IGNORECASE)
+
+
+def _summarize_build_failure(lines: list, code: int) -> str:
+    """Pull the first real compiler error(s) out of a failed make log so the
+    user sees the cause directly instead of 'check the log above'."""
+    hits = []
+    for i, ln in enumerate(lines):
+        if _BUILD_ERR_RE.search(ln):
+            hits.append(ln.strip())
+            # RGBDS prints the detail on the line after "ERROR: file(123):"
+            if ln.strip().endswith(":") and i + 1 < len(lines) and lines[i + 1].strip():
+                hits.append("    " + lines[i + 1].strip())
+        if len(hits) >= 4:
+            break
+    msg = f"Build failed (make exit code {code})."
+    if hits:
+        msg += " First error:\n" + "\n".join(hits[:4])
+    else:
+        tail = [l for l in lines[-6:] if l.strip()]
+        if tail:
+            msg += " Last output:\n" + "\n".join(tail)
+    return msg
 
 
 def _find_rom(out: str, canonical: str, ext: str, log) -> str:
@@ -878,6 +952,7 @@ def _run_randomizer(data: dict):
     try:
         data = _normalize_settings(data)
         src, out, seed = _prep_job(data)
+        _validate_source("crystal", src)
 
         log("=" * 56)
         log(f"Crystal Legacy Randomizer  |  Seed: {seed}")
@@ -1207,6 +1282,7 @@ def _run_randomizer_yellow(data: dict):
     try:
         data = _normalize_settings(data)
         src, out, seed = _prep_job(data)
+        _validate_source("yellow", src)
 
         log("=" * 56)
         log(f"Yellow Legacy Randomizer  |  Seed: {seed}")
@@ -1471,6 +1547,7 @@ def _run_randomizer_emerald(data: dict):
     try:
         data = _normalize_settings(data)
         src, out, seed = _prep_job(data)
+        _validate_source("emerald", src)
 
         log("=" * 56)
         log(f"Emerald Legacy Randomizer  |  Seed: {seed}")

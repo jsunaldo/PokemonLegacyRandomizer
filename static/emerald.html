@@ -2124,8 +2124,10 @@ async function pollStatus() {
       clearInterval(_pollTimer);
       setRunning(false);
       if (sd.error) {
-        document.getElementById('statusText').textContent = '❌ Error — see log';
-        document.getElementById('statusText').style.color = 'var(--red)';
+        const st = document.getElementById('statusText');
+        st.textContent = '❌ ' + (sd.error.split('\n')[0] || 'Error — see log');
+        st.title = sd.error;   // full message (incl. compiler error) on hover
+        st.style.color = 'var(--red)';
       } else {
         document.getElementById('statusText').textContent = '✅ Done!';
         document.getElementById('statusText').style.color = 'var(--green)';
