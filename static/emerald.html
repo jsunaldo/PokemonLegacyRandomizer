@@ -459,6 +459,19 @@
           </div>
         </label>
       </div>
+
+      <div class="section">
+        <div class="section-title">Abilities</div>
+        <label class="option">
+          <input type="checkbox" id="randomizeAbilities">
+          <div class="option-group">
+            <div class="opt-label">Randomize Abilities</div>
+            <div class="opt-desc">Every species gets random ability(ies) from the full Gen 3 pool.
+              Single-ability species stay single-ability; dual-ability species get two distinct
+              random abilities. Applies to wild, trainer, and gift Pokémon alike</div>
+          </div>
+        </label>
+      </div>
     </div>
 
     <!-- ── STARTERS ── -->
@@ -1883,6 +1896,7 @@ function gatherSettings() {
     includeGen3:         document.getElementById('includeGen3')?.checked ?? true,
     removeTimeEvolutions:  document.getElementById('removeTimeEvolutions')?.checked,
     fullHMCompat:          document.getElementById('fullHMCompat')?.checked,
+    randomizeAbilities:    document.getElementById('randomizeAbilities')?.checked,
     starterMode,
     customStarters,
     wildMode:            document.querySelector('input[name=wildMode]:checked')?.value || 'random',
@@ -1933,6 +1947,7 @@ function applySettings(s) {
   onGenFilterChange();
   setCb('removeTimeEvolutions', s.removeTimeEvolutions);
   setCb('fullHMCompat',         s.fullHMCompat);
+  setCb('randomizeAbilities',   s.randomizeAbilities);
 
   if (s.starterMode)  setRadio('starterMode',  s.starterMode);
   if (s.customStarters) [0,1,2].forEach(i => { if (s.customStarters[i]) _cbSetValue('customCb'+i, s.customStarters[i]); });
@@ -2175,7 +2190,7 @@ const PRESETS = {
     wildMode:'random', wildRule:'catch_em_all', wildRandHeldItems:true,
     trainerMode:'random', trainerRivalStarter:true, starterMode:'random', staticMode:'random',
     tradeMode:'both', tradeRandNicknames:true, tradeRandOT:true, tradeRandIVs:true, tradeRandItems:true,
-    fieldItemsMode:'random', fullHMCompat:true, buildRom:true },
+    fieldItemsMode:'random', fullHMCompat:true, randomizeAbilities:true, buildRom:true },
 };
 function updateConflictWarnings() {
   const w = [];

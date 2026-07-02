@@ -1583,6 +1583,7 @@ def _run_randomizer_emerald(data: dict):
         rand_trades           = parser.trades
         rand_tmhm_compat      = parser.tmhm_compat
         rand_wild_held_items  = parser.wild_held_items
+        rand_abilities        = parser.species_abilities
 
         if s.full_hm_compat:
             log("TM/HM Compatibility:")
@@ -1601,6 +1602,12 @@ def _run_randomizer_emerald(data: dict):
                 rand_wild_held_items = engine.randomize_wild_held_items(parser.wild_held_items)
             else:
                 log("  [WARN] No wild held item slots found in source — skipping.")
+
+        randomize_abilities = data.get("randomizeAbilities", False)
+        if randomize_abilities:
+            log("Abilities:")
+            rand_abilities = engine.randomize_abilities(
+                parser.species_abilities, parser.ability_pool)
 
         if s.trainer_mode != "unchanged":
             log("Trainers:")
@@ -1656,6 +1663,10 @@ def _run_randomizer_emerald(data: dict):
         if s.wild_rand_held_items and parser.wild_held_items:
             log("Writing wild held items...")
             writer.write_wild_held_items(parser.wild_held_items, rand_wild_held_items)
+
+        if randomize_abilities and parser.species_abilities:
+            log("Writing abilities...")
+            writer.write_abilities(parser.species_abilities, rand_abilities)
 
         if s.trainer_mode != "unchanged":
             log("Writing trainer parties...")
@@ -1716,7 +1727,7 @@ def _run_randomizer_emerald(data: dict):
                 "starters": rand_starters, "wild_json": rand_wild_json,
                 "trainers": rand_parties, "static": rand_static,
                 "field_items": rand_field_items, "trades": rand_trades,
-                "held": rand_wild_held_items,
+                "held": rand_wild_held_items, "abilities": rand_abilities,
             })
             sp.write(out, log)
         except Exception as _sp_e:

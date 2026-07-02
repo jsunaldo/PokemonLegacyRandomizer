@@ -59,6 +59,16 @@ class TrainerParty:
 
 
 @dataclass
+class AbilityEntry:
+    """One .abilities = {A, B} line in species_info.h."""
+    species: str
+    ability1: str
+    ability2: str        # ABILITY_NONE when the species has a single ability
+    source_file: str
+    line_index: int
+
+
+@dataclass
 class WildHeldItemEntry:
     """One .itemCommon / .itemRare held-item slot in species_info.h."""
     species: str         # SPECIES_X constant
@@ -175,6 +185,8 @@ class EmeraldLegacyParser:
         self.tmhm_compat: list      = []   # list of TMHMEntry
         self.trades: list           = []   # list of EmeraldInGameTrade
         self.wild_held_items: list  = []   # list of WildHeldItemEntry
+        self.species_abilities: list = []  # list of AbilityEntry
+        self.ability_pool: list     = []   # all ABILITY_X consts (minus NONE)
         self.evolution_to: dict     = {}   # species_const -> first evolution target const
 
         # Species metadata (from constants)
@@ -583,6 +595,8 @@ class EmeraldLegacyParser:
 
         block_start_re = re.compile(r"^\s*\[(SPECIES_\w+)\]\s*=")
         item_re        = re.compile(r"^\s*\.item(Common|Rare)\s*=\s*(ITEM_\w+)\s*,")
+        abil_re        = re.compile(
+            r"^\s*\.abilities\s*=\s*\{(ABILITY_\w+),\s*(ABILITY_\w+)\}")
 
         current = None
         for idx, line in enumerate(lines):
@@ -590,8 +604,10 @@ class EmeraldLegacyParser:
             if ms:
                 current = ms.group(1)
                 continue
+            if "\\" in line or not current:
+                continue   # macro-definition lines / preamble
             mi = item_re.match(line)
-            if mi and current and "\\" not in line:
+            if mi:
                 slot = "common" if mi.group(1) == "Common" else "rare"
                 item = mi.group(2)
                 if item != "ITEM_NONE":
@@ -599,8 +615,24 @@ class EmeraldLegacyParser:
                         species=current, slot=slot, item=item,
                         source_file=abs_path, line_index=idx,
                     ))
+            ma = abil_re.match(line)
+            if ma:
+                self.species_abilities.append(AbilityEntry(
+                    species=current, ability1=ma.group(1), ability2=ma.group(2),
+                    source_file=abs_path, line_index=idx,
+                ))
 
-        self._log(f"    Found {len(self.wild_held_items)} wild held item slot(s)")
+        self._log(f"    Found {len(self.wild_held_items)} wild held item slot(s), "
+                  f"{len(self.species_abilities)} ability line(s)")
+
+        # Ability pool from include/constants/abilities.h (excluding NONE)
+        atext = self._read(os.path.join("include", "constants", "abilities.h"))
+        if atext:
+            self.ability_pool = [
+                m.group(1) for m in
+                re.finditer(r"#define (ABILITY_\w+) \d+", atext)
+                if m.group(1) != "ABILITY_NONE"
+            ]
 
     # -----------------------------------------------------------------------
     # Evolution chains (src/data/pokemon/evolution.h)

@@ -518,6 +518,34 @@ class EmeraldRandomizerEngine:
             self._log("  [INFO] Rival starter: no rival starter slots found.")
 
     # -----------------------------------------------------------------------
+    # Ability randomization (.abilities in species_info.h)
+    # -----------------------------------------------------------------------
+
+    def randomize_abilities(self, entries: list, pool: list) -> list:
+        """
+        Return copies of AbilityEntry with each non-NONE slot replaced by a
+        random ability from the pool. Species with a single ability keep a
+        single ability (slot 2 stays ABILITY_NONE); dual-ability species get
+        two distinct random abilities.
+        """
+        if not entries or not pool:
+            self._log("  [SKIP] No ability data found — skipping.")
+            return []
+
+        result = []
+        for e in entries:
+            a1 = random.choice(pool)
+            if e.ability2 != "ABILITY_NONE":
+                a2 = random.choice([a for a in pool if a != a1])
+            else:
+                a2 = "ABILITY_NONE"
+            result.append(type(e)(species=e.species, ability1=a1, ability2=a2,
+                                  source_file=e.source_file,
+                                  line_index=e.line_index))
+        self._log(f"  Abilities: randomized {len(result)} species.")
+        return result
+
+    # -----------------------------------------------------------------------
     # Wild held items (.itemCommon / .itemRare)
     # -----------------------------------------------------------------------
 

@@ -23,7 +23,7 @@ def _clean(const):
     if not isinstance(const, str):
         return str(const)
     s = const
-    for pre in ("SPECIES_", "ITEM_", "MOVE_"):
+    for pre in ("SPECIES_", "ITEM_", "MOVE_", "ABILITY_"):
         if s.startswith(pre):
             s = s[len(pre):]
             break
@@ -150,6 +150,19 @@ def _trade_given(t):
     return getattr(t, "given_species", None) or getattr(t, "species", None)
 
 
+def _abilities_section(sp, orig, new):
+    lines = []
+    for o, n in zip(orig, new):
+        pair_o = o.ability1 if o.ability2 == "ABILITY_NONE" else f"{o.ability1}/{o.ability2}"
+        pair_n = n.ability1 if n.ability2 == "ABILITY_NONE" else f"{n.ability1}/{n.ability2}"
+        if pair_o == pair_n:
+            continue
+        def fmt(pair):
+            return " / ".join(sp.n(a) for a in pair.split("/"))
+        lines.append(f"{sp.n(o.species)}: {fmt(pair_o)}  →  {fmt(pair_n)}")
+    sp.section("Abilities", lines)
+
+
 def _trades_section(sp, orig, new):
     lines = []
     for o, n in zip(orig, new):
@@ -261,3 +274,4 @@ def build_emerald(sp, parser, d):
     if "field_items" in d: _run(_field_items_section, sp, parser.field_items, d["field_items"])
     if "trades" in d:      _run(_trades_section, sp, parser.trades, d["trades"])
     if "held" in d:        _run(_held_items_section, sp, parser.wild_held_items, d["held"])
+    if "abilities" in d:   _run(_abilities_section, sp, parser.species_abilities, d["abilities"])

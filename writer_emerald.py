@@ -294,6 +294,37 @@ class EmeraldSourceWriter:
         self._log(f"  Applied full HM compat to {len(orig_entries)} species in learnsets")
 
     # -----------------------------------------------------------------------
+    # Abilities (.abilities = {A, B} in species_info.h)
+    # -----------------------------------------------------------------------
+
+    def write_abilities(self, orig_entries: list, rand_entries: list):
+        """Replace each species' .abilities pair with the randomized one."""
+        if not orig_entries or not rand_entries:
+            return
+
+        abil_re = re.compile(
+            r"^(\s*\.abilities\s*=\s*\{)(ABILITY_\w+)(,\s*)(ABILITY_\w+)(\}.*)")
+        count = 0
+        for orig, rand in zip(orig_entries, rand_entries):
+            out_abs = self._src_to_out(orig.source_file)
+            lines   = self._get_lines(out_abs)
+            li      = orig.line_index
+            if li < 0 or li >= len(lines):
+                continue
+            m = abil_re.match(lines[li])
+            if m:
+                lines[li] = (m.group(1) + rand.ability1 + m.group(3)
+                             + rand.ability2 + m.group(5))
+                if not lines[li].endswith("\n"):
+                    lines[li] += "\n"
+                count += 1
+
+        touched = {self._src_to_out(o.source_file) for o in orig_entries}
+        for out_abs in touched:
+            self._write_lines(out_abs, self._get_lines(out_abs))
+        self._log(f"  Abilities: updated {count} species line(s)")
+
+    # -----------------------------------------------------------------------
     # Wild held items (.itemCommon / .itemRare in species_info.h)
     # -----------------------------------------------------------------------
 
