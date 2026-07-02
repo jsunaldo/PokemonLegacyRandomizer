@@ -37,6 +37,21 @@ def _ensure_rgbds(version: str, log_fn) -> str:
     contains rgbasm / rgblink / rgbfix / rgbgfx.
     """
     import platform, stat, tarfile, tempfile, urllib.request, json as _json
+    import shutil as _sh
+
+    # Non-macOS: the auto-installer only ships macOS binaries. Use a
+    # system-installed RGBDS from PATH instead, or explain how to get one.
+    if sys.platform != "darwin":
+        found = _sh.which("rgbasm")
+        if found:
+            log_fn(f"  RGBDS from PATH: {found} "
+                   f"(make sure it is version {version} for this game)")
+            return os.path.dirname(found)
+        raise RuntimeError(
+            f"RGBDS v{version} is required. Auto-install is only available on "
+            "macOS — install RGBDS from https://rgbds.gbdev.io/install and "
+            "make sure 'rgbasm' is on your PATH."
+        )
 
     bin_dir  = os.path.join(_TOOLCHAIN_CACHE, f"rgbds-{version}")
     rgbasm   = os.path.join(bin_dir, "rgbasm")
@@ -176,6 +191,28 @@ def _ensure_gba_toolchain(log_fn) -> dict:
                                  (caller must copy into the output tree before make)
     """
     import shutil as _shutil, urllib.request, tempfile, stat
+
+    # Non-macOS: auto-install is macOS-only. Use an existing devkitPro
+    # install (DEVKITPRO env or /opt/devkitpro) + agbcc if present.
+    if sys.platform != "darwin":
+        dkp = os.environ.get("DEVKITPRO", "/opt/devkitpro")
+        arm = os.path.join(dkp, "devkitARM", "bin", "arm-none-eabi-gcc")
+        agbcc_dir = os.path.join(_TOOLCHAIN_CACHE, "agbcc_install")
+        if os.path.isfile(arm) and os.path.isfile(os.path.join(agbcc_dir, "bin", "agbcc")):
+            log_fn(f"  devkitARM from {dkp} (system install)")
+            return {
+                "DEVKITPRO": dkp,
+                "DEVKITARM": os.path.join(dkp, "devkitARM"),
+                "PATH": os.path.join(dkp, "devkitARM", "bin"),
+                "PKG_CONFIG_PATH": os.environ.get("PKG_CONFIG_PATH", ""),
+                "agbcc_install_dir": agbcc_dir,
+            }
+        raise RuntimeError(
+            "GBA toolchain auto-install is only available on macOS. Install "
+            "devkitARM (https://devkitpro.org/wiki/Getting_Started), build "
+            "agbcc (https://github.com/pret/agbcc) into "
+            f"{agbcc_dir}, then retry."
+        )
 
     # ── 1. devkitARM ─────────────────────────────────────────────────────────
     devkitpro = "/opt/devkitpro"
@@ -556,6 +593,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _api_browse(self):
         """Open a native macOS folder picker via osascript."""
+        if sys.platform != "darwin":
+            self._send_json({"path": "", "unsupported": True,
+                             "message": "Folder picker is macOS-only — "
+                                        "type the path into the field instead."})
+            return
         try:
             r = subprocess.run(
                 ["osascript", "-e",

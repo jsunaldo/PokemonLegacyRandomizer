@@ -47,6 +47,25 @@ GNU Make is required for all three (comes with Xcode Command Line Tools: `xcode-
 
 ---
 
+### Windows / Linux (experimental)
+
+The packaged `.app` and toolchain auto-install are macOS-only, but the app itself is a
+local web server and runs anywhere Python 3 does:
+
+```bash
+git clone https://github.com/jsunaldo/PokemonLegacyRandomizer.git
+cd PokemonLegacyRandomizer
+python3 main.py
+```
+
+You must install the build toolchain yourself and have it on `PATH`:
+[RGBDS](https://rgbds.gbdev.io/install) for Yellow/Crystal, and
+[devkitARM](https://devkitpro.org/wiki/Getting_Started) + [agbcc](https://github.com/pret/agbcc)
+for Emerald. The native folder picker and save dialog are replaced by typing paths
+directly; the built ROM stays in your output directory.
+
+---
+
 ## Usage
 
 1. Launch the app — a small status window appears and your browser opens to the launcher.

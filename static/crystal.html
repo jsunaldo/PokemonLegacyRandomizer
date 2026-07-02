@@ -1617,6 +1617,7 @@ async function browse(which) {
   try {
     const res = await fetch('/api/browse');
     const data = await res.json();
+    if (data.unsupported) { alert(data.message || 'Folder picker not available on this OS — type the path manually.'); return; }
     if (data.path) {
       if (which === 'src') {
         document.getElementById('srcDir').value = data.path;
