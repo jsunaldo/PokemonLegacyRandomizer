@@ -1078,6 +1078,21 @@
     <div class="panel" id="panel-randomize">
 
       <div class="section">
+        <div class="section-title">Presets</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn-secondary" onclick="applyPreset(PRESETS.recommended,'Recommended')">⭐ Recommended</button>
+          <button class="btn-secondary" onclick="applyPreset(PRESETS.light,'Light')">🌱 Light</button>
+          <button class="btn-secondary" onclick="applyPreset(PRESETS.chaos,'Chaos')">🌀 Chaos</button>
+          <span id="presetNote" style="font-size:12px;color:var(--accent)"></span>
+        </div>
+        <p style="font-size:11.5px;color:var(--muted);margin-top:6px">
+          Presets set the randomization options; your Gift Pokémon / item lists are left untouched.
+        </p>
+        <div id="conflictBox"></div>
+      </div>
+
+
+      <div class="section">
         <div class="section-title">Seed</div>
         <div class="rand-seed-row">
           <div class="field">
@@ -1482,6 +1497,7 @@ function showTab(name, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
   btn.classList.add('active');
+  if (name === 'randomize' && typeof updateConflictWarnings === 'function') updateConflictWarnings();
 }
 
 // ---------------------------------------------------------------------------
@@ -2898,6 +2914,35 @@ function applySettings(s, applySeed) {
 
 
 
+
+
+// ── Presets & conflict warnings (Crystal) ────────────────────────────────────
+const PRESETS = {
+  recommended: { genFilter:'all', wildMode:'random', wildRule:'similar_strength', wildNoLegendaries:true,
+    wildTimeBased:true, wildBanBadHeldItems:true, trainerMode:'random', trainerSimilarStrength:true,
+    trainerNoLegend:true, trainerBossNoLegend:true, trainerNoBaby:true, trainerRivalStarter:true,
+    starterMode:'random_two_stage', staticMode:'swap', tradeMode:'given_only',
+    fieldItemsMode:'random', fieldItemsBanBad:true, fullHMCompat:true, easierEvolutions:true,
+    removeTimeEvolutions:true, buildRom:true },
+  light: { genFilter:'all', wildMode:'area1to1', wildNoLegendaries:true, wildTimeBased:true,
+    trainerMode:'unchanged', starterMode:'unchanged', staticMode:'unchanged', tradeMode:'unchanged',
+    fieldItemsMode:'unchanged', fullHMCompat:true, buildRom:true },
+  chaos: { genFilter:'all', wildMode:'random', wildRule:'catch_em_all', wildRandHeldItems:true,
+    trainerMode:'random', trainerRivalStarter:true, starterMode:'random', staticMode:'random',
+    tradeMode:'both', tradeRandNicknames:true, tradeRandOT:true, tradeRandIVs:true, tradeRandItems:true,
+    fieldItemsMode:'random', fullHMCompat:true, buildRom:true },
+};
+function updateConflictWarnings() {
+  const w = [];
+  const gen  = document.querySelector('input[name="genFilter"]:checked')?.value;
+  const rule = document.querySelector('input[name="wildRule"]:checked')?.value;
+  const sm   = document.querySelector('input[name="starterMode"]:checked')?.value;
+  if (gen && gen !== 'all' && rule === 'catch_em_all')
+    w.push("Catch-'Em-All with a generation filter may not have enough species to fill every wild slot.");
+  if (sm === 'custom' && [0,1,2].some(i => !_getStarterConst(i)))
+    w.push('Custom starters selected but not all three are chosen — empty slots keep the original starter.');
+  renderConflicts(w);
+}
 
 </script>
 </body>

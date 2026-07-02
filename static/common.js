@@ -33,6 +33,26 @@ function copyDonate(btn){
   });
 })();
 
+// ── Presets + conflict warnings ──────────────────────────────────────────────
+// Applies a preset config through the page's applySettings and refreshes the
+// conflict box. Presets omit pcPokemon / item lists so they never wipe those.
+function applyPreset(preset, name) {
+  if (typeof applySettings === 'function') applySettings(preset, false);
+  const note = document.getElementById('presetNote');
+  if (note) { note.textContent = '✓ Applied: ' + name; setTimeout(function(){ note.textContent=''; }, 2500); }
+  if (typeof updateConflictWarnings === 'function') updateConflictWarnings();
+}
+
+// Renders warning strings into #conflictBox (empty list clears it).
+function renderConflicts(warnings) {
+  const box = document.getElementById('conflictBox');
+  if (!box) return;
+  box.innerHTML = warnings.map(function(w){
+    return '<div style="font-size:12px;color:#e6b84c;background:rgba(230,184,76,.08);' +
+           'border:1px solid rgba(230,184,76,.3);border-radius:6px;padding:6px 10px;margin-top:6px">⚠️ ' + w + '</div>';
+  }).join('');
+}
+
 // ── Quick UX: remember last folders + copy-seed button ──────────────────────
 (function(){
   function ready(fn){ document.readyState!=='loading' ? fn() : document.addEventListener('DOMContentLoaded', fn); }

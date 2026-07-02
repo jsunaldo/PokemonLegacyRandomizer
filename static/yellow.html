@@ -899,6 +899,21 @@
     <div class="panel" id="panel-randomize">
 
       <div class="section">
+        <div class="section-title">Presets</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn-secondary" onclick="applyPreset(PRESETS.recommended,'Recommended')">⭐ Recommended</button>
+          <button class="btn-secondary" onclick="applyPreset(PRESETS.light,'Light')">🌱 Light</button>
+          <button class="btn-secondary" onclick="applyPreset(PRESETS.chaos,'Chaos')">🌀 Chaos</button>
+          <span id="presetNote" style="font-size:12px;color:var(--accent)"></span>
+        </div>
+        <p style="font-size:11.5px;color:var(--muted);margin-top:6px">
+          Presets set the randomization options; your Gift Pokémon / item lists are left untouched.
+        </p>
+        <div id="conflictBox"></div>
+      </div>
+
+
+      <div class="section">
         <div class="section-title">Seed</div>
         <div class="rand-seed-row">
           <div class="field">
@@ -1275,6 +1290,7 @@ function showTab(name, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
   btn.classList.add('active');
+  if (name === 'randomize' && typeof updateConflictWarnings === 'function') updateConflictWarnings();
 }
 
 // ---------------------------------------------------------------------------
@@ -2378,16 +2394,21 @@ function applySettings(s, applySeed) {
   setCheck('zeroGrinding', s.zeroGrinding);
   setCheck('elite4Prep', s.elite4Prep);
 
-  // Gifts — Bag items (back-compat: fold any saved PC items into the bag)
-  document.getElementById('bagItemList').innerHTML = '';
-  ensureItemList().then(() => {
-    (s.startingBagItems || []).forEach(i => addItemRow('bag', i.const, i.qty));
-    (s.startingPCItems  || []).forEach(i => addItemRow('bag', i.const, i.qty));
-  });
+  // Gifts — Bag items (back-compat: fold any saved PC items into the bag).
+  // Only touched when the settings object carries item lists, so presets
+  // never wipe user-configured items.
+  if (Array.isArray(s.startingBagItems) || Array.isArray(s.startingPCItems)) {
+    document.getElementById('bagItemList').innerHTML = '';
+    ensureItemList().then(() => {
+      (s.startingBagItems || []).forEach(i => addItemRow('bag', i.const, i.qty));
+      (s.startingPCItems  || []).forEach(i => addItemRow('bag', i.const, i.qty));
+    });
+  }
 
-  // Gifts — Pokémon
-  document.getElementById('pcMonList').innerHTML = '';
+  // Gifts — Pokémon (only when the settings object carries them —
+  // presets omit the list so they never wipe user-configured Pokémon)
   if (Array.isArray(s.pcPokemon)) {
+    document.getElementById('pcMonList').innerHTML = '';
     s.pcPokemon.forEach(m => addPCMon(m));
   }
 
@@ -2404,6 +2425,33 @@ function applySettings(s, applySeed) {
 
 
 
+
+
+// ── Presets & conflict warnings (Yellow) ─────────────────────────────────────
+const PRESETS = {
+  recommended: { wildMode:'random', wildRule:'similar_strength', wildNoLegendaries:true,
+    trainerMode:'random', trainerNoLegend:true, trainerBossNoLegend:true,
+    starterMode:'random_two_stage', starterNoLegendaries:true, staticMode:'swap',
+    tradeMode:'given_only', fieldItemsMode:'random', fieldItemsBanBad:true,
+    fullHMCompat:true, easierEvolutions:true, buildRom:true },
+  light: { wildMode:'area1to1', wildNoLegendaries:true, trainerMode:'unchanged',
+    starterMode:'unchanged', staticMode:'unchanged', tradeMode:'unchanged',
+    fieldItemsMode:'unchanged', fullHMCompat:true, buildRom:true },
+  chaos: { wildMode:'random', wildRule:'catch_em_all', trainerMode:'random',
+    starterMode:'random', staticMode:'random', tradeMode:'both',
+    tradeRandNicknames:true, tradeRandOT:true, fieldItemsMode:'random',
+    fullHMCompat:true, buildRom:true },
+};
+function updateConflictWarnings() {
+  const w = [];
+  const sm = document.querySelector('input[name="starterMode"]:checked')?.value;
+  if (sm === 'custom' && !_getStarterConst(0))
+    w.push('Custom starter selected but no Pokémon chosen — Oak will give the original Pikachu.');
+  const empties = Array.from(document.querySelectorAll('#pcMonList .pc-mon-card'))
+    .filter(c => !c.querySelector('.species-const-value')?.value).length;
+  if (empties) w.push(empties + ' gift Pokémon row(s) have no species selected — they will be skipped.');
+  renderConflicts(w);
+}
 
 </script>
 </body>
