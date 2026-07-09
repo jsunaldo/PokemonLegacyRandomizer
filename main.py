@@ -726,12 +726,19 @@ def _normalize_settings(data: dict) -> dict:
     return data
 
 
-# Per-game source fingerprints: the file each parser fundamentally needs.
+# Per-game source fingerprints: files/dirs each parser fundamentally needs.
+# All markers must exist (Emerald and FireRed share wild_encounters.json,
+# so each also requires a hometown map dir unique to its game).
 _SOURCE_FINGERPRINTS = {
-    "crystal": ("Crystal Legacy", os.path.join("data", "wild", "johto_grass.asm")),
-    "yellow":  ("Yellow Legacy",  os.path.join("data", "wild", "grass_water.asm")),
-    "emerald": ("Emerald Legacy", os.path.join("src", "data", "wild_encounters.json")),
+    "crystal": ("Crystal Legacy", [os.path.join("data", "wild", "johto_grass.asm")]),
+    "yellow":  ("Yellow Legacy",  [os.path.join("data", "wild", "grass_water.asm")]),
+    "emerald": ("Emerald Legacy", [os.path.join("src", "data", "wild_encounters.json"),
+                                   os.path.join("data", "maps", "LittlerootTown")]),
 }
+
+
+def _has_markers(root: str, markers: list) -> bool:
+    return all(os.path.exists(os.path.join(root, m)) for m in markers)
 
 
 def _validate_source(game: str, src: str):
@@ -739,13 +746,13 @@ def _validate_source(game: str, src: str):
 
     Raises ValueError with a helpful message when the folder is a different
     game's source, a parent folder of the real repo, or not a source at all."""
-    name, marker = _SOURCE_FINGERPRINTS[game]
-    if os.path.isfile(os.path.join(src, marker)):
+    name, markers = _SOURCE_FINGERPRINTS[game]
+    if _has_markers(src, markers):
         return
 
     # Is it one of the OTHER games' sources?
-    for other, (other_name, other_marker) in _SOURCE_FINGERPRINTS.items():
-        if other != game and os.path.isfile(os.path.join(src, other_marker)):
+    for other, (other_name, other_markers) in _SOURCE_FINGERPRINTS.items():
+        if other != game and _has_markers(src, other_markers):
             raise ValueError(
                 f"The Source Directory looks like {other_name} source, but this "
                 f"is the {name} randomizer. Pick the {name} repo folder "
@@ -756,7 +763,7 @@ def _validate_source(game: str, src: str):
     try:
         for entry in sorted(os.listdir(src)):
             cand = os.path.join(src, entry)
-            if os.path.isdir(cand) and os.path.isfile(os.path.join(cand, marker)):
+            if os.path.isdir(cand) and _has_markers(cand, markers):
                 raise ValueError(
                     f"The Source Directory doesn't contain {name} source, but the "
                     f"folder inside it does — set the Source Directory to:\n  {cand}"
@@ -766,8 +773,8 @@ def _validate_source(game: str, src: str):
 
     raise ValueError(
         f"The Source Directory doesn't look like {name} source "
-        f"(missing {marker}). It should be the repo root — the folder that "
-        f"contains the Makefile."
+        f"(missing {markers[0]}). It should be the repo root — the folder "
+        f"that contains the Makefile."
     )
 
 
@@ -809,10 +816,19 @@ def _save_settings_used(data: dict, seed: int, out: str, log):
         log(f"[WARN] Could not save settings_used.json: {e}")
 
 
-def _run_make_build(out: str, log, kind: str, rgbds_version=None):
+def _run_make_build(out: str, log, kind: str, rgbds_version=None,
+                    make_args=None, local_mirror_name=None, rom_name=None):
     """Run 'make' in the output tree with the right toolchain on PATH.
 
-    kind: "gb" (RGBDS, needs rgbds_version) or "gba" (devkitARM + agbcc).
+    kind: "gb"         — RGBDS (needs rgbds_version)
+          "gba"        — devkitARM + agbcc (Emerald-style MODERN=0)
+          "gba_modern" — arm-none-eabi-gcc from PATH ('make modern')
+
+    local_mirror_name: when set, the output tree is mirrored to
+    /private/tmp/<name> and built THERE, then rom_name is copied back.
+    Needed because builds on cloud-synced mounts (Dropbox/CloudStorage)
+    corrupt large writes and re-stamp mtimes.
+
     Streams build output to the log; raises RuntimeError on failure."""
     import shutil as _shutil
 
@@ -835,6 +851,14 @@ def _run_make_build(out: str, log, kind: str, rgbds_version=None):
         log("Checking RGBDS toolchain…")
         rgbds_bin = _ensure_rgbds(rgbds_version, log)
         env["PATH"] = rgbds_bin + os.pathsep + env["PATH"]
+    elif kind == "gba_modern":
+        if not _shutil.which("arm-none-eabi-gcc", path=env["PATH"]):
+            raise RuntimeError(
+                "arm-none-eabi-gcc not found. FireRed builds with the modern "
+                "toolchain:  brew install --cask gcc-arm-embedded  (or "
+                "arm-none-eabi-gcc from devkitPro) and make sure it is on PATH."
+            )
+        log("Using arm-none-eabi-gcc from PATH (make modern)")
     else:  # gba
         log("Checking GBA toolchain (devkitARM + agbcc)…")
         gba_env = _ensure_gba_toolchain(log)
@@ -850,9 +874,21 @@ def _run_make_build(out: str, log, kind: str, rgbds_version=None):
             log("  Installing agbcc into output directory…")
             _shutil.copytree(agbcc_src, agbcc_dst, dirs_exist_ok=True)
 
+    # Cloud-mount workaround: mirror to local disk and build there
+    build_dir = out
+    if local_mirror_name:
+        build_dir = os.path.join("/private/tmp", local_mirror_name)
+        log(f"Mirroring source to local build dir (cloud-sync-safe): {build_dir}")
+        r = subprocess.run(
+            ["rsync", "-a", "--delete", "--exclude", ".git",
+             out.rstrip("/") + "/", build_dir + "/"],
+            capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError(f"rsync to local build dir failed: {r.stderr[:300]}")
+
     proc = subprocess.Popen(
-        [make_exe],
-        cwd=out,
+        [make_exe] + (make_args or []),
+        cwd=build_dir,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -867,6 +903,13 @@ def _run_make_build(out: str, log, kind: str, rgbds_version=None):
 
     if proc.returncode != 0:
         raise RuntimeError(_summarize_build_failure(captured, proc.returncode))
+
+    # Mirror build: bring the ROM back to the user's output directory
+    if local_mirror_name and rom_name:
+        built = os.path.join(build_dir, rom_name)
+        if os.path.isfile(built):
+            _shutil.copy2(built, os.path.join(out, rom_name))
+            log(f"Copied {rom_name} back to the output directory")
 
 
 # Patterns that mark a real compiler/assembler error line in a make log.
@@ -1538,32 +1581,53 @@ def _run_randomizer_yellow(data: dict):
 # Emerald Legacy randomization worker (runs in background thread)
 # ---------------------------------------------------------------------------
 
-def _run_randomizer_emerald(data: dict):
+# Config for the parameterized GBA pipeline handler.
+_GBA_GAMES = {
+    "emerald": dict(
+        title="Emerald Legacy", spoiler_title="Pokemon Emerald Legacy",
+        parser_mod="parser_emerald", parser_cls="EmeraldLegacyParser",
+        engine_mod="randomizer_engine_emerald", engine_cls="EmeraldRandomizerEngine",
+        settings_cls="EmeraldRandomizerSettings",
+        writer_mod="writer_emerald", writer_cls="EmeraldSourceWriter",
+        item_names="EMERALD_ALL_ITEM_DISPLAY_NAMES",
+        build_kind="gba", make_args=None, mirror=None,
+        rom="pokeemerald.gba", stem="EmeraldLegacy",
+    ),
+}
+
+
+def _run_randomizer_gba(data: dict, game: str):
     global _job_running, _job_done, _job_error
 
     def log(msg):
         _append_log(msg)
 
     try:
+        cfg = _GBA_GAMES[game]
         data = _normalize_settings(data)
         src, out, seed = _prep_job(data)
-        _validate_source("emerald", src)
+        _validate_source(game, src)
 
         log("=" * 56)
-        log(f"Emerald Legacy Randomizer  |  Seed: {seed}")
+        log(f"{cfg['title']} Randomizer  |  Seed: {seed}")
         log("=" * 56)
 
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         try:
-            from parser_emerald import EmeraldLegacyParser
-            from randomizer_engine_emerald import EmeraldRandomizerEngine, EmeraldRandomizerSettings
-            from writer_emerald import EmeraldSourceWriter
+            import importlib
+            _pmod = importlib.import_module(cfg["parser_mod"])
+            _emod = importlib.import_module(cfg["engine_mod"])
+            _wmod = importlib.import_module(cfg["writer_mod"])
+            ParserCls   = getattr(_pmod, cfg["parser_cls"])
+            EngineCls   = getattr(_emod, cfg["engine_cls"])
+            SettingsCls = getattr(_emod, cfg["settings_cls"])
+            WriterCls   = getattr(_wmod, cfg["writer_cls"])
         except ImportError:
-            raise RuntimeError("Emerald Legacy randomizer modules are not available in this build.")
+            raise RuntimeError(f"{cfg['title']} randomizer modules are not available in this build.")
 
         # ── Parse ──────────────────────────────────────────────────────────────
         log("\nParsing source files...")
-        parser = EmeraldLegacyParser(src, log_fn=log)
+        parser = ParserCls(src, log_fn=log)
         starters_found = parser.parse_all()
 
         wild_groups = parser.wild_json.get("wild_encounter_groups", [])
@@ -1575,7 +1639,7 @@ def _run_randomizer_emerald(data: dict):
             f"starters={'yes' if starters_found else 'NOT FOUND'}")
 
         # ── Build settings ─────────────────────────────────────────────────────
-        s = EmeraldRandomizerSettings(seed=seed)
+        s = SettingsCls(seed=seed)
 
         # General — generation filter (multi-select checkboxes)
         s.include_gen1            = data.get("includeGen1", True)
@@ -1640,7 +1704,7 @@ def _run_randomizer_emerald(data: dict):
         s.zero_grinding = data.get("zeroGrinding", False)
         s.elite4_prep   = data.get("elite4Prep", False)
 
-        engine = EmeraldRandomizerEngine(
+        engine = EngineCls(
             settings=s,
             species_consts=parser.species_consts,
             species_bst=parser.species_bst,
@@ -1730,7 +1794,7 @@ def _run_randomizer_emerald(data: dict):
 
         # ── Write output ───────────────────────────────────────────────────────
         log("\n--- Writing output ---")
-        writer = EmeraldSourceWriter(src, out, log_fn=log)
+        writer = WriterCls(src, out, log_fn=log)
         writer.prepare_output_directory()
 
         if s.wild_mode != "unchanged":
@@ -1796,10 +1860,11 @@ def _run_randomizer_emerald(data: dict):
             import spoiler_log
             from constants_emerald import SPECIES_NAMES as _ESN
             try:
-                from item_data import EMERALD_ALL_ITEM_DISPLAY_NAMES as _EIN
+                import item_data as _idata
+                _EIN = getattr(_idata, cfg["item_names"], {})
             except Exception:
                 _EIN = {}
-            sp = spoiler_log.Spoiler("Pokemon Emerald Legacy", seed, {**_ESN, **_EIN})
+            sp = spoiler_log.Spoiler(cfg["spoiler_title"], seed, {**_ESN, **_EIN})
             spoiler_log.build_emerald(sp, parser, {
                 "starters": rand_starters, "wild_json": rand_wild_json,
                 "trainers": rand_parties, "static": rand_static,
@@ -1817,12 +1882,13 @@ def _run_randomizer_emerald(data: dict):
         rom_path  = None
 
         if build_rom:
-            _run_make_build(out, log, "gba")
-            rom_path = _find_rom(out, "pokeemerald.gba", ".gba", log)
+            _run_make_build(out, log, cfg["build_kind"], make_args=cfg["make_args"],
+                            local_mirror_name=cfg["mirror"], rom_name=cfg["rom"])
+            rom_path = _find_rom(out, cfg["rom"], ".gba", log)
             rom_path = _save_rom_with_dialog(
-                rom_path, f"EmeraldLegacy_Randomized_{seed}.gba", ".gba", log)
+                rom_path, f"{cfg['stem']}_Randomized_{seed}.gba", ".gba", log)
 
-        _log_finish(build_rom, rom_path, out, "pokeemerald.gba", log)
+        _log_finish(build_rom, rom_path, out, cfg["rom"], log)
 
         with _state_lock:
             global _job_done
@@ -1841,6 +1907,11 @@ def _run_randomizer_emerald(data: dict):
         with _state_lock:
             global _job_running
             _job_running = False
+
+
+
+def _run_randomizer_emerald(data: dict):
+    _run_randomizer_gba(data, "emerald")
 
 
 # ---------------------------------------------------------------------------

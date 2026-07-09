@@ -1022,3 +1022,4 @@ EMERALD_ALL_ITEM_POOL = sorted(
     EMERALD_ALL_ITEM_DISPLAY_NAMES.items(),
     key=lambda x: x[1].lower(),
 )
+

@@ -2,7 +2,7 @@
 # Syncs all randomizer source files into the .app bundle(s).
 # Run this after any code change.
 
-SRC="/Users/jsun/Library/CloudStorage/Dropbox/Gambling/Dan Green/Mario Baseball/Claude/crystal_legacy_randomizer"
+SRC="/Users/jsun/Library/CloudStorage/Dropbox/Claude/crystal_legacy_randomizer"
 
 # All known app locations — add new ones here if the app is copied elsewhere
 APPS=(

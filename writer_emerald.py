@@ -18,6 +18,11 @@ from constants_emerald import (
 
 class EmeraldSourceWriter:
 
+    # Line that makes SetBoxMonAt visible to the generated C. Emerald's public
+    # header declares it; FireRed keeps it in an internal header with heavy
+    # GUI dependencies, so FireRed declares the prototype directly instead.
+    STORAGE_DECL = '#include "pokemon_storage_system.h"' 
+
     def __init__(self, src_dir: str, out_dir: str, log_fn=None):
         self.src_dir = src_dir
         self.out_dir = out_dir
@@ -674,7 +679,7 @@ class EmeraldSourceWriter:
 #include "global.h"
 #include "pokemon.h"
 #include "battle.h"
-#include "pokemon_storage_system.h"
+{self.STORAGE_DECL}
 #include "constants/species.h"
 #include "constants/items.h"
 #include "constants/moves.h"

@@ -695,7 +695,8 @@ class EmeraldLegacyParser:
         # Locate the sIngameTrades array
         array_start = -1
         for i, line in enumerate(lines):
-            if re.search(r'sIngameTrades\s*\[\s*\]', line):
+            # Emerald spells it sIngameTrades; FireRed sInGameTrades
+            if re.search(r'sIn[Gg]ameTrades\s*\[\s*\]', line):
                 array_start = i
                 break
         if array_start < 0:
