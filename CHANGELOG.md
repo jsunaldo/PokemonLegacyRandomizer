@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.2 — unreleased (full re-review, 2026-09-11)
+## v1.2 — 2026-10-06
 
 A top-to-bottom review of every module. Most items below are silent bugs:
 options that looked like they worked but changed nothing, or changed the

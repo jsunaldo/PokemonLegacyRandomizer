@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 APP_NAME="PokemonLegacyRandomizer"
 
 echo "=== Cleaning previous build ==="
-rm -rf build dist "${APP_NAME}.spec"
+rm -rf build dist "${APP_NAME}.spec" "${APP_NAME}.zip"
 
 echo "=== Building .app with PyInstaller ==="
 # Use full path since ~/Library/Python/3.9/bin may not be on PATH
