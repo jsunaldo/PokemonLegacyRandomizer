@@ -814,8 +814,9 @@
 
       <p style="font-size:12px;color:var(--muted);margin-top:4px">
         ℹ️ The Pokémon pool is controlled by the <strong>General</strong> tab.<br>
-        Only encounters using the <code>setwildbattle</code> script command are detected.
-        Most major static encounters in Emerald use object-event battles and will not be affected by this setting.
+        Detected automatically from the map scripts: scripted battles (<code>setwildbattle</code>),
+        Legacy's event legendaries (<code>seteventmon</code>), gift Pokémon (<code>givemon</code>) and eggs
+        (<code>giveegg</code>). Cries, pictures and dialogue that reference the species are patched to match.
       </p>
     </div>
 
@@ -899,7 +900,7 @@
         <div class="section-title">Field Items</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
           Field items are items found in the overworld — visible Pokéball sprites on the ground
-          and hidden items found with the Itemfinder. Key items and HMs are never replaced.
+          and hidden items found with the Itemfinder. Key items and HMs are never moved or replaced, so the game always stays beatable.
         </p>
 
         <label class="option">
@@ -1054,8 +1055,9 @@
           <input type="checkbox" id="buildRom" checked>
           <div class="option-group">
             <div class="opt-label">Build ROM after randomizing</div>
-            <div class="opt-desc">Run <code>make</code> in the output directory automatically.
-              Requires <strong>devkitARM</strong> to be installed and in your PATH</div>
+            <div class="opt-desc">Compiles the randomized source into a playable <code>.gba</code> with <code>make</code>.
+              On macOS the GBA toolchain (devkitARM + agbcc) is downloaded and set up automatically on the first build.
+              A save dialog will appear so you can name and place the ROM anywhere.</div>
           </div>
         </label>
       </div>
@@ -1070,8 +1072,9 @@
         <button class="btn-randomize" id="btn-randomize" onclick="startRandomize()">⚡ Randomize!</button>
         <div class="rand-status">
           <div class="spinner" id="spinner"></div>
-          <span class="status-text" id="statusText">Ready</span>
+          <span class="status-text" id="statusText">Ready — set your source &amp; output directories above, then click Randomize.</span>
         </div>
+        <div id="resultBox" class="plr-result" style="display:none"></div>
       </div>
     </div>
 
@@ -1125,7 +1128,9 @@
             <h3>Clone the Emerald Legacy source</h3>
             <p>Download the <a href="https://github.com/cRz-Shadows/Pokemon_Emerald_Legacy" target="_blank" style="color:var(--accent)">Pokemon Emerald Legacy</a>
               repository and place it in a convenient folder.</p>
-            <p><code>git clone https://github.com/cRz-Shadows/Pokemon_Emerald_Legacy.git</code></p>
+            <p>Easiest: click <strong>⬇ Get source</strong> next to the Source Directory field. It downloads the source into <code>~/Pokemon Legacy Sources/Pokemon_Emerald_Legacy</code> and fills the field in for you.</p>
+            <p>Or clone it yourself in Terminal: <code>git clone https://github.com/cRz-Shadows/Pokemon_Emerald_Legacy.git</code></p>
+            <p>This is the hack's <em>source code</em>, not a ROM. The randomizer can't use a <code>.gba</code> file.</p>
           </div>
         </div>
 
@@ -1136,7 +1141,7 @@
             <p>Use the <strong>Browse</strong> buttons at the top to set:
               <ul style="margin-left:16px;margin-top:4px;font-size:13px;color:var(--muted)">
                 <li><strong style="color:var(--fg)">Source</strong> — the cloned repository folder</li>
-                <li><strong style="color:var(--fg)">Output</strong> — a new empty folder where the patched source will be written</li>
+                <li><strong style="color:var(--fg)">Output</strong> — a new empty folder where the patched source will be written. It is wiped on every run, so the app refuses a folder that already holds other files.</li>
               </ul>
             </p>
             <div class="how-note">Source and Output must be different directories — the source is never modified.</div>
@@ -1173,7 +1178,7 @@
           <li><strong>Save your settings</strong> — use <em>Save Settings</em> on the Randomize tab to export a JSON file you can load back later.</li>
           <li><strong>Reproducible runs</strong> — save both settings and seed with <em>Save Settings + Seed</em>. Sharing that file recreates the exact same randomized ROM.</li>
           <li><strong>Full HM Compat</strong> — strongly recommended for randomized runs. Without it, a randomized party may be unable to learn required HMs.</li>
-          <li><strong>Easier Trade Evolutions</strong> — also recommended. Without it, trade-evolving Pokémon (Kadabra → Alakazam, etc.) can only be obtained pre-evolved.</li>
+          <li><strong>Remove Special-Condition Evolutions</strong> — recommended. It turns Espeon, Umbreon, Milotic, Hitmonlee and Hitmonchan into item evolutions, so a randomized team can always evolve.</li>
           <li><strong>Wild data</strong> is stored in a single JSON file (<code>src/data/wild_encounters.json</code>), making randomization fast and reliable.</li>
         </ul>
       </div>
@@ -2063,9 +2068,9 @@ function onSettingsFile(input)  {
 }
 
 // ── Randomize ────────────────────────────────────────────────────────────────
-let _logOffset = 0;
-let _pollTimer = null;
-
+// The payload is exactly what Save Settings writes plus the seed, so
+// settings_used.json always round-trips. Log streaming, status and the
+// result panel live in common.js (PLR).
 async function startRandomize() {
   const src = document.getElementById('srcDir').value.trim();
   const out = document.getElementById('outDir').value.trim();
@@ -2073,74 +2078,8 @@ async function startRandomize() {
   if (!out) { alert('Please set the Output Directory.'); return; }
   if (src === out) { alert('Source and Output must be different directories.'); return; }
 
-  const settings = gatherSettings();
-  const seed = document.getElementById('seed').value.trim();
-  const payload = {
-    ...settings,
-    seed: seed ? parseInt(seed) : null,
-  };
-
-  // Reset log
-  _logOffset = 0;
-  const logBox = document.getElementById('log-box');
-  if (logBox) { logBox.textContent = ''; logBox.style.display = 'block'; }
-  document.querySelector('.log-toggle').textContent = '▼ Build Log';
-
-  setRunning(true);
-
-  try {
-    const res = await fetch('/api/randomize_emerald', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const d = await res.json();
-    if (!d.ok) { setRunning(false); alert('Error: ' + (d.error || 'Unknown')); return; }
-    _pollTimer = setInterval(pollStatus, 800);
-  } catch (e) {
-    setRunning(false);
-    alert('Request failed: ' + e);
-  }
-}
-
-async function pollStatus() {
-  try {
-    // Fetch new log lines
-    const lr = await fetch('/api/log?since=' + _logOffset);
-    const ld = await lr.json();
-    if (ld.lines && ld.lines.length) {
-      const logBox = document.getElementById('log-box');
-      if (logBox) {
-        logBox.textContent += ld.lines.join('\n') + '\n';
-        logBox.scrollTop = logBox.scrollHeight;
-      }
-      _logOffset = ld.total;
-    }
-
-    // Check job status
-    const sr = await fetch('/api/status');
-    const sd = await sr.json();
-    if (sd.done || !sd.running) {
-      clearInterval(_pollTimer);
-      setRunning(false);
-      if (sd.error) {
-        const st = document.getElementById('statusText');
-        st.textContent = '❌ ' + (sd.error.split('\n')[0] || 'Error — see log');
-        st.title = sd.error;   // full message (incl. compiler error) on hover
-        st.style.color = 'var(--red)';
-      } else {
-        document.getElementById('statusText').textContent = '✅ Done!';
-        document.getElementById('statusText').style.color = 'var(--green)';
-      }
-    }
-  } catch (e) { console.error(e); }
-}
-
-function setRunning(running) {
-  document.getElementById('btn-randomize').disabled = running;
-  document.getElementById('spinner').style.display  = running ? 'block' : 'none';
-  document.getElementById('statusText').textContent = running ? 'Randomizing…' : 'Ready';
-  document.getElementById('statusText').style.color = '';
+  const seed = document.getElementById('seed').value.trim();   // blank = random (server picks)
+  await PLR.begin('/api/randomize_emerald', { ...gatherSettings(), seed });
 }
 
 // ── Log toggle ───────────────────────────────────────────────────────────────
@@ -2220,7 +2159,13 @@ function updateConflictWarnings() {
     w.push("Catch-'Em-All with a single generation may not have enough species for every wild slot.");
   const sm = document.querySelector('input[name="starterMode"]:checked')?.value;
   if (sm === 'custom' && [0,1,2].some(i => !_cbGetValue('customCb' + i)))
-    w.push('Custom starters selected but not all three are chosen.');
+    w.push('Custom starters selected but not all three are chosen — empty slots keep the original starter.');
+  const wm = document.querySelector('input[name="wildMode"]:checked')?.value;
+  if (wm !== 'unchanged' && wm !== 'random' && rule === 'catch_em_all')
+    w.push("Catch-'Em-All only applies to the plain Random wild mode — with a 1-to-1 mapping it is ignored.");
+  const tm = document.querySelector('input[name="trainerMode"]:checked')?.value;
+  if (document.getElementById('trainerRivalStarter')?.checked && tm === 'unchanged')
+    w.push('Rival Carries Starter needs trainers to be randomized — with Trainers = Unchanged it does nothing.');
   renderConflicts(w);
 }
 

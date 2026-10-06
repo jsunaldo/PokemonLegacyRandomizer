@@ -22,6 +22,7 @@ FILES=(
   static_data.py
   trade_data.py
   spoiler_log.py
+  key_items.py
   randomizer_engine_emerald.py
   randomizer_engine_yellow.py
   parser_emerald.py

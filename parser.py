@@ -125,6 +125,14 @@ class InGameTrade:
     item_line: int = -1
     item_full_line: str = ""
 
+    # Crystal Legacy single-line ``npctrade`` macro: every field lives on
+    # the same line, so the writer rebuilds the whole macro call instead of
+    # patching individual lines.
+    is_npctrade: bool = False
+    dvs_hi: str = ""        # first DV byte token as written (e.g. "$37")
+    dvs_lo: str = ""        # second DV byte token (e.g. "$66")
+    gender: str = ""        # TRADE_GENDER_* constant
+
 
 @dataclass
 class EvolutionEntry:
@@ -309,6 +317,7 @@ class CrystalLegacyParser:
         self.wild_held_items = []      # list[WildHeldItemEntry]
         self.tmhm_compat = []          # list[TMHMCompatEntry]
         self.level_evo_map = {}        # {source_species_id: [(target_id, min_level), ...]}
+        self.full_evo_map = {}         # {source_species_id: [(target_id, evo_type, param), ...]} — ALL methods
         self.trainers = []             # list[Trainer]
         self.starters = []             # list[StarterLocation], exactly 3
         self.starter_dialogue_lines = []  # list[StarterDialogueLine]
@@ -1054,8 +1063,9 @@ class CrystalLegacyParser:
         for rel in EVOLUTION_DATA_FILE_CANDIDATES:
             full = os.path.join(self.source_dir, rel)
             if os.path.exists(full):
-                entries, evo_map = self._scan_evolve_file(full)
+                entries, evo_map, full_map = self._scan_evolve_file(full)
                 self.level_evo_map = evo_map
+                self.full_evo_map = full_map
                 if entries:
                     self.log(f"  Evolution data: {len(entries)} relevant entry/entries in {rel}")
                     return entries
@@ -1067,6 +1077,7 @@ class CrystalLegacyParser:
         skip_dirs = {'gfx', 'audio', 'mobile', 'vc', 'lib'}
         all_entries = []
         merged_map = {}
+        merged_full = {}
         found_files = set()
         for root, dirs, files in os.walk(self.source_dir):
             dirs[:] = [d for d in dirs if d not in skip_dirs]
@@ -1074,14 +1085,17 @@ class CrystalLegacyParser:
                 if not fname.endswith('.asm'):
                     continue
                 filepath = os.path.join(root, fname)
-                entries, evo_map = self._scan_evolve_file(filepath)
+                entries, evo_map, full_map = self._scan_evolve_file(filepath)
                 if entries:
                     all_entries.extend(entries)
                     found_files.add(os.path.relpath(filepath, self.source_dir))
                 for src_id, targets in evo_map.items():
                     merged_map.setdefault(src_id, []).extend(targets)
+                for src_id, targets in full_map.items():
+                    merged_full.setdefault(src_id, []).extend(targets)
 
         self.level_evo_map = merged_map
+        self.full_evo_map = merged_full
         if all_entries:
             self.log(
                 f"  Found {len(all_entries)} relevant evolution entry/entries "
@@ -1122,19 +1136,23 @@ class CrystalLegacyParser:
 
     def _scan_evolve_file(self, filepath: str):
         """
-        Return (relevant_entries, level_evo_map) from a single file.
+        Return (relevant_entries, level_evo_map, full_evo_map) from a single file.
 
         relevant_entries — list[EvolutionEntry] for LEVEL / TRADE / HAPPINESS types
         level_evo_map    — dict {source_id: [(target_id, level), ...]} for LEVEL types
+        full_evo_map     — dict {source_id: [(target_id, evo_type, param), ...]}
+                           for EVERY evolution method (level, item, happiness,
+                           trade, stat) — used to find a species' final form.
         """
         try:
             with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                 lines = f.readlines()
         except OSError:
-            return [], {}
+            return [], {}, {}
 
         entries   = []
         level_map = {}           # {source_id: [(target_id, level)]}
+        full_map  = {}           # {source_id: [(target_id, evo_type, param)]}
         current_source_id = 0    # species whose evo block we're in
 
         label_re = re.compile(r'^([A-Za-z][A-Za-z0-9_]*)::?$')
@@ -1172,15 +1190,18 @@ class CrystalLegacyParser:
                     evo_type = 'EVOLVE_HAPPINESS_NIGHT'
                 # TR_ANYTIME stays as EVOLVE_HAPPINESS (not time-based → skipped)
 
-            # Build level_evo_map from LEVEL evolutions
-            if evo_type in ('LEVEL', 'EVOLVE_LEVEL') and current_source_id:
+            # Build level_evo_map from LEVEL evolutions, full_evo_map from all
+            if current_source_id:
                 target_id = POKEMON_CONSTANTS.get(target, 0)
                 if target_id:
-                    try:
-                        lv = int(param)
-                        level_map.setdefault(current_source_id, []).append((target_id, lv))
-                    except ValueError:
-                        pass
+                    full_map.setdefault(current_source_id, []).append(
+                        (target_id, evo_type, param))
+                    if evo_type in ('LEVEL', 'EVOLVE_LEVEL'):
+                        try:
+                            lv = int(param)
+                            level_map.setdefault(current_source_id, []).append((target_id, lv))
+                        except ValueError:
+                            pass
 
             # Collect modifiable entries (TRADE / HAPPINESS)
             if evo_type not in self._RELEVANT_EVO_TYPES:
@@ -1194,7 +1215,7 @@ class CrystalLegacyParser:
                 full_line=line,
             ))
 
-        return entries, level_map
+        return entries, level_map, full_map
 
     # -------------------------------------------------------------------------
     # Starter item parsing
@@ -1530,6 +1551,15 @@ class CrystalLegacyParser:
             if givemon not in POKEMON_CONSTANTS or getmon not in POKEMON_CONSTANTS:
                 continue
 
+            dv_hi = m.group(5)
+            dv_lo = m.group(6)
+            try:
+                dvs_raw = f"${int(dv_hi.lstrip('$'), 16):02X}{int(dv_lo.lstrip('$'), 16):02X}"
+            except ValueError:
+                dvs_raw = "0"
+
+            # Every field is on this one line; the writer rebuilds the macro
+            # call field-by-field (see SourceWriter._rewrite_npctrade_line).
             trades.append(InGameTrade(
                 source_file=filepath,
                 given_species=getmon,          # what player receives
@@ -1538,19 +1568,22 @@ class CrystalLegacyParser:
                 requested_species=givemon,     # what player gives
                 requested_line=i,              # same line as given
                 requested_full_line=raw.rstrip('\n'),
-                # DVs are embedded in the macro — cannot patch independently
-                dvs_raw="0",
-                dvs_line=-1,
-                dvs_full_line="",
+                dvs_raw=dvs_raw,
+                dvs_line=i,
+                dvs_full_line=raw.rstrip('\n'),
                 nickname=nickname,
-                nickname_line=-1,              # embedded — not patched separately
-                nickname_full_line="",
+                nickname_line=i,
+                nickname_full_line=raw.rstrip('\n'),
                 ot_name=ot_name,
-                ot_line=-1,                    # embedded — not patched separately
-                ot_full_line="",
+                ot_line=i,
+                ot_full_line=raw.rstrip('\n'),
                 item=item,
-                item_line=-1,                  # embedded — not patched separately
-                item_full_line="",
+                item_line=i,
+                item_full_line=raw.rstrip('\n'),
+                is_npctrade=True,
+                dvs_hi=dv_hi,
+                dvs_lo=dv_lo,
+                gender=m.group(10),
             ))
 
         return trades
@@ -1889,6 +1922,9 @@ class CrystalLegacyParser:
         Skips key items that must never be replaced.
         """
         from item_data import FIELD_ITEMS_SKIP
+        from key_items import key_items
+        # Source-derived key items + the hand list; never moved or replaced.
+        skip = set(FIELD_ITEMS_SKIP) | set(key_items("crystal", self.source_dir))
 
         results = []
         script_dirs = [
@@ -1941,7 +1977,7 @@ class CrystalLegacyParser:
                 mv = self._VISIBLE_ITEM_RE.match(line_nc)
                 if mv:
                     item = mv.group(1).upper()
-                    if item in self._ITEM_MACRO_SKIP or item in FIELD_ITEMS_SKIP:
+                    if item in self._ITEM_MACRO_SKIP or item in skip:
                         continue
                     results.append(FieldItemEntry(
                         item_const=item,
@@ -1956,7 +1992,7 @@ class CrystalLegacyParser:
                 mh = self._HIDDEN_ITEM_RE.match(line_nc)
                 if mh:
                     item = mh.group(1).upper()
-                    if item in self._ITEM_MACRO_SKIP or item in FIELD_ITEMS_SKIP:
+                    if item in self._ITEM_MACRO_SKIP or item in skip:
                         continue
                     results.append(FieldItemEntry(
                         item_const=item,

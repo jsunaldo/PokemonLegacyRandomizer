@@ -181,6 +181,7 @@ class EmeraldLegacyParser:
         self.trainer_parties: list  = []   # list of TrainerParty
         self.starters: list         = []   # list of StarterSlot (3 entries)
         self.field_items: list      = []   # list of FieldItem
+        self.protected_field_items: list = []  # (item, file) key items left in place
         self.static_encounters: list= []   # list of StaticEncounter
         self.tmhm_compat: list      = []   # list of TMHMEntry
         self.trades: list           = []   # list of EmeraldInGameTrade
@@ -188,6 +189,7 @@ class EmeraldLegacyParser:
         self.species_abilities: list = []  # list of AbilityEntry
         self.ability_pool: list     = []   # all ABILITY_X consts (minus NONE)
         self.evolution_to: dict     = {}   # species_const -> first evolution target const
+        self.evolution_graph: dict  = {}   # species_const -> [target_const, ...] (every method)
 
         # Species metadata (from constants)
         self.species_consts: list   = list(ALL_SPECIES_CONSTS)
@@ -414,9 +416,14 @@ class EmeraldLegacyParser:
         reference is assigned to the nearest one."""
         statics_here = []
         main_lines   = set()
+        protected    = self._protected_items()
 
         for li, ln in enumerate(lines):
             mf = self._FINDITEM_RE.match(ln)
+            if mf and mf.group(1) in protected:
+                # Key item (Storage Key, Scanner, …) — never moved or replaced.
+                self.protected_field_items.append((mf.group(1), path))
+                continue
             if mf:
                 self.field_items.append(FieldItem(
                     item_const=mf.group(1),
@@ -464,7 +471,12 @@ class EmeraldLegacyParser:
 
         self.static_encounters.extend(statics_here)
 
+    def _protected_items(self):
+        from key_items import key_items
+        return key_items("emerald", self.src_dir)
+
     def _parse_map_scripts(self):
+        protected = self._protected_items()
         maps_dir = self._path(MAPS_DIR)
         if not os.path.isdir(maps_dir):
             self._log(f"    [WARN] Maps directory not found: {maps_dir}")
@@ -513,6 +525,10 @@ class EmeraldLegacyParser:
                     continue
                 for li, ln in enumerate(json_lines):
                     mh = hidden_re.match(ln)
+                    if mh and mh.group(1) in protected:
+                        # e.g. the Abandoned Ship room keys
+                        self.protected_field_items.append((mh.group(1), json_f))
+                        continue
                     if mh:
                         self.field_items.append(FieldItem(
                             item_const=mh.group(1),
@@ -522,6 +538,9 @@ class EmeraldLegacyParser:
                         ))
                         hidden_count += 1
 
+        if self.protected_field_items:
+            self._log(f"    {len(self.protected_field_items)} key item(s) left in place: "
+                      + ", ".join(sorted({k for k, _ in self.protected_field_items})))
         self._log(f"    Found {len(self.field_items)} field item(s) "
                   f"({hidden_count} hidden), "
                   f"{len(self.static_encounters)} static encounter(s)")
@@ -651,15 +670,28 @@ class EmeraldLegacyParser:
             self._log(f"    [WARN] evolution file not found: {EVOLUTION_FILE}")
             return
 
-        entry_re = re.compile(
-            r"\[(SPECIES_\w+)\]\s*=\s*\{\{\s*\w+\s*,\s*[^,]+,\s*(SPECIES_\w+)"
+        # [SPECIES_X] = {{EVO_A, p, SPECIES_Y},
+        #                {EVO_B, p, SPECIES_Z}},
+        block_re = re.compile(
+            r"\[(SPECIES_\w+)\]\s*=\s*\{((?:\s*\{[^{}]*\}\s*,?)+)\s*\}"
         )
-        for m in entry_re.finditer(text):
-            src_sp, tgt_sp = m.group(1), m.group(2)
-            if src_sp not in self.evolution_to:
-                self.evolution_to[src_sp] = tgt_sp
+        evo_re = re.compile(r"\{\s*(\w+)\s*,\s*([^,{}]+?)\s*,\s*(SPECIES_\w+)\s*\}")
+        links = 0
+        for bm in block_re.finditer(text):
+            src_sp = bm.group(1)
+            targets = []
+            for em in evo_re.finditer(bm.group(2)):
+                tgt = em.group(3)
+                if tgt not in targets:
+                    targets.append(tgt)
+            if targets:
+                self.evolution_graph.setdefault(src_sp, []).extend(
+                    t for t in targets if t not in self.evolution_graph.get(src_sp, []))
+                if src_sp not in self.evolution_to:
+                    self.evolution_to[src_sp] = targets[0]
+                links += len(targets)
 
-        self._log(f"    Found {len(self.evolution_to)} evolution link(s)")
+        self._log(f"    Found {links} evolution link(s) for {len(self.evolution_graph)} species")
 
     # -----------------------------------------------------------------------
     # In-game trades (src/data/trade.h — sIngameTrades[] array)

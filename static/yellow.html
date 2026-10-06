@@ -440,17 +440,17 @@
       <div class="section">
         <div class="section-title">Starter Pokémon</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
-          In Yellow, you always start with Pikachu. With this option, Oak hands you an
-          <strong>extra starter alongside Pikachu</strong> at the beginning of the game
-          (Pikachu and all its special behaviour stay exactly as in the original).
-          The extra starter is given at level 5.
+          In Yellow, Oak gives you Pikachu. With this option, Oak gives you a
+          <strong>different Pokémon instead of Pikachu</strong>, at level 5. The rival's
+          story team is unchanged, and the intro dialogue still mentions Pikachu.
+          The gift Bulbasaur, Charmander and Squirtle are randomized on the Static Pokémon tab.
         </p>
 
         <label class="option">
           <input type="radio" name="starterMode" id="starterUnchanged" value="unchanged" checked onchange="onStarterModeChange()">
           <div class="option-group">
             <div class="opt-label">Unchanged</div>
-            <div class="opt-desc">Just Pikachu, exactly like the original game — no extra starter</div>
+            <div class="opt-desc">Pikachu, exactly like the original game</div>
           </div>
         </label>
 
@@ -458,7 +458,7 @@
           <input type="radio" name="starterMode" id="starterCustom" value="custom" onchange="onStarterModeChange()">
           <div class="option-group">
             <div class="opt-label">Custom</div>
-            <div class="opt-desc">Oak also gives you a specific Pokémon of your choice</div>
+            <div class="opt-desc">Oak gives you the Pokémon you pick instead of Pikachu</div>
           </div>
         </label>
         <div class="starter-grid" id="customStarterGrid" style="display:none;margin-bottom:6px">
@@ -472,7 +472,7 @@
           <input type="radio" name="starterMode" id="starterRandom" value="random" onchange="onStarterModeChange()">
           <div class="option-group">
             <div class="opt-label">Random (Completely)</div>
-            <div class="opt-desc">Oak also gives you a random Pokémon from the full pool</div>
+            <div class="opt-desc">Oak gives you a random Pokémon instead of Pikachu</div>
           </div>
         </label>
 
@@ -480,7 +480,7 @@
           <input type="radio" name="starterMode" id="starterTwoStage" value="random_two_stage" onchange="onStarterModeChange()">
           <div class="option-group">
             <div class="opt-label">Random (basic Pokémon with 2 evolutions)</div>
-            <div class="opt-desc">Oak also gives you a random first-stage Pokémon of a 3-stage line (e.g. Bulbasaur, Charmander)</div>
+            <div class="opt-desc">Oak gives you a random first-stage Pokémon of a 3-stage line instead of Pikachu (e.g. Bulbasaur, Charmander)</div>
           </div>
         </label>
       </div>
@@ -748,8 +748,7 @@
           <input type="radio" name="staticMode" id="staticSwap" value="swap" onchange="onStaticModeChange()">
           <div class="option-group">
             <div class="opt-label">Swap Legendaries &amp; Swap Standards</div>
-            <div class="opt-desc">Legendary statics are replaced with other legendaries at random.
-              Standard statics (Snorlax, Lapras, Eevee…) are replaced with other non-legendaries at random.</div>
+            <div class="opt-desc">Static Pokémon (Snorlax, Lapras, Eevee, the gift starters…) are replaced with other non-legendaries at random. (The legendary birds and Mewtwo use a separate battle system and are not randomized in Yellow.)</div>
           </div>
         </label>
 
@@ -785,7 +784,7 @@
         <div class="section-title">Field Items</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
           Field items are items found in the overworld — visible Pokéball sprites on the ground
-          and hidden items found with the Itemfinder. Key items and HMs are never replaced.
+          and hidden items found with the Itemfinder. Key items and HMs are never moved or replaced, so the game always stays beatable.
         </p>
 
         <label class="option">
@@ -934,7 +933,7 @@
                  style="accent-color:var(--accent);width:15px;height:15px;margin-top:3px">
           <div class="option-group">
             <div class="opt-label">Build ROM after randomizing</div>
-            <div class="opt-desc">Compiles the randomized source into a playable <code>pokeyellow.gbc</code> file using <code>make</code> + RGBDS. Requires <strong>RGBDS 0.6.0+</strong> (not the 0.5.2 used by Crystal Legacy). A save dialog will appear so you can name and place the ROM anywhere.</div>
+            <div class="opt-desc">Compiles the randomized source into a playable <code>pokeyellow.gbc</code> file using <code>make</code> + RGBDS&nbsp;0.7.0 (downloaded automatically on macOS — it never conflicts with Crystal Legacy's 0.5.2). A save dialog will appear so you can name and place the ROM anywhere.</div>
           </div>
         </label>
       </div>
@@ -980,6 +979,7 @@
           <div class="spinner" id="spinner"></div>
           <div class="status-text" id="statusText">Ready — set your source &amp; output directories above, then click Randomize.</div>
         </div>
+        <div id="resultBox" class="plr-result" style="display:none"></div>
       </div>
 
     </div>
@@ -1011,7 +1011,7 @@
           <div class="how-req-card">
             <div class="req-icon">🔧</div>
             <div class="req-title">RGBDS <span class="badge badge-green">installed automatically</span></div>
-            <div class="req-desc">The assembler/linker that compiles the ASM source into a .gb ROM.
+            <div class="req-desc">The assembler/linker that compiles the ASM source into a .gbc ROM.
               On macOS the app downloads and caches <strong>v0.7.0</strong> (the version Yellow Legacy needs —
               0.8+ breaks its syntax) on your first build. Nothing to install, and it never conflicts with
               Crystal Legacy's older 0.5.2, which is cached separately.
@@ -1038,7 +1038,9 @@
           <div class="step-body">
             <h3>Get the Yellow Legacy source code</h3>
             <p>Open Terminal and run:</p>
-            <p><code>git clone https://github.com/cRz-Shadows/Pokemon_Yellow_Legacy</code></p>
+            <p>Easiest: click <strong>⬇ Get source</strong> next to the Source Directory field. It downloads the source into <code>~/Pokemon Legacy Sources/Pokemon_Yellow_Legacy</code> and fills the field in for you.</p>
+            <p>Or clone it yourself in Terminal: <code>git clone https://github.com/cRz-Shadows/Pokemon_Yellow_Legacy</code></p>
+            <p>This is the hack's <em>source code</em>, not a ROM. The randomizer can't use a <code>.gbc</code>/<code>.gba</code> file.</p>
             <p>This creates a <code>Pokemon_Yellow_Legacy</code> folder — that's your <strong>Source Directory</strong>. Never modify files inside it; the randomizer reads from it and writes to a separate output folder.</p>
           </div>
         </div>
@@ -1050,6 +1052,7 @@
             <p>Only Apple's command-line tools are needed for <code>make</code>. In Terminal:</p>
             <p><code>xcode-select --install</code></p>
             <div class="how-note">✅ <strong>RGBDS is handled for you.</strong> On your first build the app automatically downloads RGBDS v0.7.0 (the version Yellow Legacy needs) into its own cache — no manual install, and no binary-swapping when you switch between Yellow and Crystal.</div>
+            <div class="how-note">🍎 <strong>Apple Silicon Mac?</strong> The RGBDS version this game needs is an Intel app, so it needs Rosetta 2. If the build stops with a Rosetta message, open Terminal, run <code>softwareupdate --install-rosetta --agree-to-license</code>, then click Randomize again.</div>
           </div>
         </div>
 
@@ -1057,7 +1060,7 @@
           <div class="step-num">3</div>
           <div class="step-body">
             <h3>Create an Output Directory</h3>
-            <p>Make a new empty folder anywhere on your Mac — for example <code>~/Desktop/YLRando_Output</code>. This is where the randomized source files are written. <strong>It is fully overwritten on every run</strong>, so don't store anything important here.</p>
+            <p>Make a new empty folder anywhere on your Mac — for example <code>~/Desktop/YLRando_Output</code>. This is where the randomized source files are written. <strong>It is wiped and rewritten on every run</strong>, so don't store anything else in it. For safety the app refuses to use a folder that already has other files in it, unless it's a folder from a previous randomizer run.</p>
           </div>
         </div>
       </div>
@@ -1095,7 +1098,7 @@
           <div class="step-body">
             <h3>Randomize &amp; Build ROM</h3>
             <p>Make sure <strong>Build ROM after randomizing</strong> is checked (it is by default), then click the <strong>Randomize &amp; Build ROM</strong> button.</p>
-            <p>The app will: copy the source → apply all changes → compile with <code>make</code> → open a save dialog so you can name and place the <code>.gb</code> file anywhere you like.</p>
+            <p>The app will: copy the source → apply all changes → compile with <code>make</code> → open a save dialog so you can name and place the <code>.gbc</code> file anywhere you like.</p>
             <div class="how-note info">ℹ️ If you uncheck "Build ROM", the randomized ASM source is saved to the Output Directory but not compiled. You can compile it yourself later by opening a Terminal in that folder and running <code>make</code>.</div>
           </div>
         </div>
@@ -1104,7 +1107,7 @@
           <div class="step-num">5</div>
           <div class="step-body">
             <h3>Play the ROM</h3>
-            <p>Load the saved <code>.gb</code> file in any Game Boy emulator — <strong>mGBA</strong> and <strong>BGB</strong> are popular choices. The file works on real hardware via a flash cart as well.</p>
+            <p>Load the saved <code>.gbc</code> file in any Game Boy / Game Boy Color emulator — <strong>mGBA</strong> and <strong>BGB</strong> are popular choices. The file works on real hardware via a flash cart as well.</p>
           </div>
         </div>
       </div>
@@ -1125,10 +1128,9 @@
           <div class="how-ref-icon">🌱</div>
           <div class="how-ref-body">
             <strong>Starters</strong>
-            <p><em>Unchanged</em> — Keeps Bulbasaur, Charmander, and Squirtle at their respective gift locations.</p>
-            <p><em>Custom</em> — You pick exactly which Pokémon replaces all three gift starter locations.</p>
-            <p><em>Random (Completely)</em> — One Pokémon chosen at random from the pool; all three gift locations give the same species.</p>
-            <p><em>Random (basic with 2 evolutions)</em> — Only picks from Pokémon that are the first stage of a 3-stage line (e.g. Bulbasaur, Charmander), giving a classic "starter feel."</p>
+            <p>Controls the Pokémon Oak gives you at the start (normally Pikachu), at level 5.</p>
+            <p><em>Unchanged</em> — Pikachu, as in the original. <em>Custom</em> — the Pokémon you pick. <em>Random (Completely)</em> — any Pokémon from the pool. <em>Random (basic with 2 evolutions)</em> — a first-stage Pokémon of a 3-stage line (e.g. Bulbasaur, Charmander), for a classic "starter feel."</p>
+            <p>The gift Bulbasaur, Charmander and Squirtle are randomized with the other gifts on the <em>Static Pokémon</em> tab.</p>
           </div>
         </div>
 
@@ -1177,7 +1179,7 @@
           <div class="how-ref-icon">🎒</div>
           <div class="how-ref-body">
             <strong>Items</strong>
-            <p>Controls overworld items — both visible Pokéball sprites and hidden items found with the Itemfinder. Key items and HMs are never replaced.</p>
+            <p>Controls overworld items — both visible Pokéball sprites and hidden items found with the Itemfinder. Key items and HMs are never moved or replaced, so the game always stays beatable.</p>
             <p><em>Shuffle</em> — the same set of items is redistributed across locations. <em>Random</em> — each location independently gets a random item. <em>Random (Evenly Distribute)</em> — all items in the pool appear as equally often as possible.</p>
             <p><em>Ban Bad Items</em> — excludes cheap/situational items so every replaced item is at least somewhat useful.</p>
             <p><em>Zero Grinding</em> — adds Rare Candy to Viridian Mart for $10, available from the very start of the game.</p>
@@ -1204,10 +1206,10 @@
         <div class="section-title">Tips &amp; Notes</div>
         <ul class="how-tip-list">
           <li><strong>The Source Directory is never modified.</strong> The randomizer copies the entire source to the Output Directory first, then applies all changes there. Your original Yellow Legacy source stays clean.</li>
-          <li><strong>The Output Directory is overwritten completely on every run.</strong> Don't store anything important in it — only keep your saved <code>.gb</code> files, which you place elsewhere via the save dialog.</li>
+          <li><strong>The Output Directory is wiped on every run.</strong> Keep only randomizer output in it. Your built <code>.gbc</code> goes wherever you choose in the save dialog.</li>
           <li><strong>Recommended settings for a fun randomized run:</strong> Wild = Random, Trainers = Random, Full HM Compatibility = ON. These give the best experience without making the game impossible to complete.</li>
           <li><strong>The log panel shows exactly what changed.</strong> Click <em>▶ Show Log</em> at the bottom of the window to see every species replacement and compiler line. If the build fails, the error will appear there.</li>
-          <li><strong>The .gb file</strong> works in any GB-compatible emulator (mGBA, BGB, RetroArch) and on real hardware via an EZ-Flash or similar flash cartridge.</li>
+          <li><strong>The .gbc file</strong> works in any GB/GBC-compatible emulator (mGBA, BGB, RetroArch) and on real hardware via an EZ-Flash or similar flash cartridge.</li>
         </ul>
       </div>
 
@@ -1427,18 +1429,11 @@ function toggleLog() {
   document.getElementById('logToggle').textContent = logVisible ? '▼ Hide Log' : '▶ Show Log';
 }
 
-let logOffset = 0;
-function appendLog(lines) {
-  const box = document.getElementById('log-box');
-  lines.forEach(l => { box.textContent += l + '\n'; });
-  box.scrollTop = box.scrollHeight;
-}
-
 // ---------------------------------------------------------------------------
-// Randomize
+// Randomize — the payload is exactly what Save Settings writes (plus the
+// directories and seed), so settings_used.json always round-trips.
+// Log streaming, status, and the result panel live in common.js (PLR).
 // ---------------------------------------------------------------------------
-let polling = false;
-
 async function startRandomize() {
   const src  = document.getElementById('srcDir').value.trim();
   const out  = document.getElementById('outDir').value.trim();
@@ -1448,108 +1443,8 @@ async function startRandomize() {
   if (!out) { alert('Please set an Output Directory.'); return; }
   if (src === out) { alert('Source and Output must be different directories.'); return; }
 
-  const starterMode = document.querySelector('input[name="starterMode"]:checked').value;
-  const staticMode  = document.querySelector('input[name="staticMode"]:checked').value;
-
-  const payload = {
-    sourceDir: src,
-    outputDir: out,
-    seed: seed,
-    genFilter: 'gen1',                                            // always Gen 1 for Yellow
-    easierEvolutions:     document.getElementById('easierEvolutions').checked,
-    fullHMCompat:         document.getElementById('fullHMCompat').checked,
-    starterMode,
-    customStarter:      _getStarterConst(0),
-    customStarters:     [_getStarterConst(0)],
-    tradeMode:          document.querySelector('input[name="tradeMode"]:checked').value,
-    tradeRandNicknames: document.getElementById('tradeRandNicknames').checked,
-    staticMode,
-    wildMode:            document.querySelector('input[name="wildMode"]:checked').value,
-    wildRule:            document.querySelector('input[name="wildRule"]:checked').value,
-    wildNoLegendaries:   document.getElementById('wildNoLegendaries').checked,
-    trainerMode:              document.querySelector('input[name="trainerMode"]:checked').value,
-    trainerSimilarStrength:   document.getElementById('trainerSimilarStrength').checked,
-    trainerNoLegend:          document.getElementById('trainerNoLegend').checked,
-    trainerWeightTypes:       document.getElementById('trainerWeightTypes').checked,
-    trainerForceEvolved:      document.getElementById('trainerForceEvolved').checked,
-    trainerForceEvoLevel:     parseInt(document.getElementById('trainerForceEvoLevel').value),
-    fieldItemsMode:           document.querySelector('input[name="fieldItemsMode"]:checked').value,
-    fieldItemsBanBad:         document.getElementById('fieldItemsBanBad').checked,
-    zeroGrinding:             document.getElementById('zeroGrinding').checked,
-    elite4Prep:               document.getElementById('elite4Prep').checked,
-    buildRom:                 document.getElementById('buildRom').checked,
-    // Gifts (handed out by Daisy with the Town Map). Always enabled; empty
-    // lists are harmless no-ops on the backend. Item gifts always go to the Bag.
-    startingItemsEnable: true,
-    startingBagItems: _gatherItemRows('bagItemList'),
-    startingPCItems:  [],
-    pcPokemonEnable: true,
-    pcPokemon: _gatherPCMons(),
-  };
-
-  // Reset UI
-  document.getElementById('log-box').textContent = '';
-  logOffset = 0;
-  if (!logVisible) toggleLog();
-
-  document.getElementById('randBtn').disabled = true;
-  document.getElementById('spinner').style.display = 'block';
-  setStatus(payload.buildRom ? 'Randomizing & building ROM…' : 'Randomizing…');
-
-  try {
-    const res = await fetch('/api/randomize_yellow', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!data.ok) { alert('Error: ' + data.error); resetUI(); return; }
-  } catch(e) { alert('Server error: ' + e); resetUI(); return; }
-
-  polling = true;
-  pollStatus();
-}
-
-async function pollStatus() {
-  if (!polling) return;
-  try {
-    const [logRes, statusRes] = await Promise.all([
-      fetch('/api/log?since=' + logOffset),
-      fetch('/api/status'),
-    ]);
-    const logData    = await logRes.json();
-    const statusData = await statusRes.json();
-
-    if (logData.lines.length > 0) {
-      appendLog(logData.lines);
-      logOffset = logData.total;
-    }
-
-    if (statusData.done) {
-      polling = false;
-      resetUI();
-      if (statusData.error) {
-        setStatus('Error: ' + statusData.error, true);
-      } else {
-        const built = document.getElementById('buildRom').checked;
-        setStatus(built ? 'Done! ✅  ROM built — check the log for the output path.'
-                        : 'Done! ✅  Source saved — open Terminal in the output folder and run: make');
-      }
-      return;
-    }
-  } catch(e) { /* server may be momentarily busy */ }
-
-  setTimeout(pollStatus, 800);
-}
-
-function resetUI() {
-  document.getElementById('randBtn').disabled = false;
-  document.getElementById('spinner').style.display = 'none';
-}
-function setStatus(msg, isError) {
-  const el = document.getElementById('statusText');
-  el.textContent = msg;
-  el.style.color = isError ? 'var(--red)' : 'var(--muted)';
+  await PLR.begin('/api/randomize_yellow',
+                  { sourceDir: src, outputDir: out, seed, genFilter: 'gen1', ...gatherSettings() });
 }
 
 // ---------------------------------------------------------------------------
@@ -2461,6 +2356,10 @@ const PRESETS = {
 function updateConflictWarnings() {
   const w = [];
   const sm = document.querySelector('input[name="starterMode"]:checked')?.value;
+  const wm   = document.querySelector('input[name="wildMode"]:checked')?.value;
+  const rule = document.querySelector('input[name="wildRule"]:checked')?.value;
+  if (wm !== 'unchanged' && wm !== 'random' && rule === 'catch_em_all')
+    w.push("Catch-'Em-All only applies to the plain Random wild mode — with a 1-to-1 mapping it is ignored.");
   if (sm === 'custom' && !_getStarterConst(0))
     w.push('Custom starter selected but no Pokémon chosen — Oak will give the original Pikachu.');
   const empties = Array.from(document.querySelectorAll('#pcMonList .pc-mon-card'))

@@ -49,11 +49,14 @@ class YellowRandomizerSettings:
     trainer_mode: str = "random"          # unchanged | random | random_even | type_themed | type_themed_boss
     trainer_no_legendaries: bool = False
     trainer_boss_no_legendaries: bool = True
+    trainer_similar_strength: bool = False
+    trainer_weight_types: bool = False
     trainer_force_fully_evolved: bool = False
     trainer_force_evo_level: int = 30
+    # Matched against the party label (e.g. "LtSurgeData", "Rival2Data")
     boss_trainer_classes: tuple = (
-        "BROCK", "MISTY", "LT_SURGE", "ERIKA", "KOGA", "SABRINA", "BLAINE", "GIOVANNI",
-        "LORELEI", "BRUNO", "AGATHA", "LANCE", "BLUE", "RED",
+        "BROCK", "MISTY", "LTSURGE", "LT_SURGE", "ERIKA", "KOGA", "SABRINA", "BLAINE",
+        "GIOVANNI", "LORELEI", "BRUNO", "AGATHA", "LANCE", "RIVAL",
         "GYM", "ELITE", "CHAMPION",
     )
 
@@ -86,12 +89,15 @@ class YellowRandomizerSettings:
 
     # Internal runtime state
     _level_evo_map: dict = field(default_factory=dict)
+    evo_graph: dict = field(default_factory=dict)   # {owner_const: [(target_const, evo_type, param)]}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Bad field items (key items, quest items, evolution stones used as key items)
+# Field item pools live in item_data (YELLOW_FIELD_ITEM_POOL_FULL / _GOOD).
+# The sets below are kept for reference only: KEY_FIELD_ITEMS must NEVER be
+# placed in the overworld regardless of the "Ban Bad Items" setting.
 # ─────────────────────────────────────────────────────────────────────────────
-BAD_FIELD_ITEMS = frozenset({
+KEY_FIELD_ITEMS = frozenset({
     "TOWN_MAP", "BICYCLE", "SURFBOARD", "SAFARI_BALL", "POKEDEX",
     "MOON_STONE", "BOULDERBADGE", "CASCADEBADGE", "THUNDERBADGE",
     "RAINBOWBADGE", "SOULBADGE", "MARSHBADGE", "VOLCANOBADGE", "EARTHBADGE",
@@ -130,6 +136,8 @@ class YellowRandomizerEngine:
         self.log = log_fn or print
         self.rng = random.Random(settings.seed)
         self._level_evo_map: dict = {}
+        self._evo_graph: dict = dict(settings.evo_graph or {})
+        self._evo_branch_choice: dict = {}
 
     # ── Pool helpers ──────────────────────────────────────────────────────────
 
@@ -168,7 +176,65 @@ class YellowRandomizerEngine:
         name_up = trainer.name.upper()
         return any(kw in name_up for kw in self.settings.boss_trainer_classes)
 
+    # ── Type helpers (Gen 2 typings from static_data; close enough for Gen 1) ─
+
+    def _type_pool(self, pool: list, weighted: bool = False) -> list:
+        """Pick a random type and return the subset of pool having it.
+        weighted=True makes common types likelier (avoids tiny pools)."""
+        from static_data import POKEMON_TYPES, ALL_TYPES
+        if weighted:
+            counts: dict = {}
+            for pid in pool:
+                for t in POKEMON_TYPES.get(pid, ()):
+                    counts[t] = counts.get(t, 0) + 1
+            if not counts:
+                return pool
+            types = list(counts)
+            chosen = self.rng.choices(types, weights=[counts[t] for t in types], k=1)[0]
+        else:
+            chosen = self.rng.choice(ALL_TYPES)
+        typed = [pid for pid in pool if chosen in POKEMON_TYPES.get(pid, ())]
+        return typed if typed else pool
+
     # ── Evolution helpers ─────────────────────────────────────────────────────
+
+    def set_evolutions(self, evolutions: list):
+        """Build the evolution graph used by Force Fully Evolved."""
+        graph: dict = {}
+        for evo in evolutions:
+            graph.setdefault(evo.owner_const, []).append(
+                (evo.target_const, evo.evo_type, evo.param))
+        self._evo_graph = graph
+        self._level_evo_map = self.build_level_evo_map(evolutions)
+
+    def _final_evolution(self, species_const: str) -> str:
+        """Follow the evolution graph (any method) to a final form.
+        Split lines pick one branch at random, remembered per base."""
+        current = species_const
+        seen = set()
+        while current not in seen:
+            seen.add(current)
+            options = self._evo_graph.get(current, [])
+            if not options:
+                break
+            if current not in self._evo_branch_choice:
+                self._evo_branch_choice[current] = self.rng.choice(options)[0]
+            current = self._evo_branch_choice[current]
+        return current
+
+    def _force_evolve_party(self, party: list) -> int:
+        """Replace under-evolved mons at/above the threshold with their final
+        form. Returns the number of mons changed."""
+        s = self.settings
+        changed = 0
+        for mon in party:
+            if mon.level < s.trainer_force_evo_level:
+                continue
+            final = self._final_evolution(mon.species_const)
+            if final != mon.species_const and final in POKEMON_CONSTANTS:
+                mon.species_const = final
+                changed += 1
+        return changed
 
     def build_level_evo_map(self, evolutions: list) -> dict:
         """
@@ -245,66 +311,100 @@ class YellowRandomizerEngine:
         mode = s.wild_mode
         rule = s.wild_rule
 
+        def _copy_with(grp, new_slots):
+            new_grp = copy.copy(grp)
+            new_grp.slots = new_slots
+            return new_grp
+
+        # Catch 'Em All: shuffle the pool once and deal it across every slot
+        # so every species appears at least once (pool cycles if needed).
+        if rule == "catch_em_all" and mode == "random":
+            deck = list(pool)
+            self.rng.shuffle(deck)
+            i = 0
+            result = []
+            for grp in wild_groups:
+                new_slots = []
+                for slot in grp.slots:
+                    new_slots.append(WildSlot(slot.level, POKEMON_CONST_NAMES.get(deck[i % len(deck)], slot.species_const)))
+                    i += 1
+                result.append(_copy_with(grp, new_slots))
+            self.log(f"  Catch 'Em All: {i} wild slots dealt from a {len(deck)}-species pool.")
+            return result
+
         # Global 1-to-1 mapping: every original species maps to the same new species
         if mode == "global1to1":
-            global_map: dict[str, str] = {}
+            global_map: dict = {}
+            used: set = set()
             result = []
             for grp in wild_groups:
                 new_slots = []
                 for slot in grp.slots:
                     if slot.species_const not in global_map:
-                        new_id = self._pick_by_rule(slot.species_id, pool, rule)
+                        new_id = self._pick_by_rule(slot.species_id, pool, rule, exclude=used)
+                        used.add(new_id)
                         global_map[slot.species_const] = POKEMON_CONST_NAMES.get(new_id, slot.species_const)
                     new_slots.append(WildSlot(slot.level, global_map[slot.species_const]))
-                new_grp = copy.copy(grp)
-                new_grp.slots = new_slots
-                result.append(new_grp)
+                result.append(_copy_with(grp, new_slots))
+            self._global_map = global_map
             return result
 
         # Area 1-to-1: within each group, same species always maps to same new species
         if mode == "area1to1":
             result = []
             for grp in wild_groups:
-                area_map: dict[str, str] = {}
+                area_pool = self._type_pool(pool) if rule == "type_themed" else pool
+                area_map: dict = {}
+                used: set = set()
                 new_slots = []
                 for slot in grp.slots:
                     if slot.species_const not in area_map:
-                        new_id = self._pick_by_rule(slot.species_id, pool, rule)
+                        new_id = self._pick_by_rule(slot.species_id, area_pool, rule, exclude=used)
+                        used.add(new_id)
                         area_map[slot.species_const] = POKEMON_CONST_NAMES.get(new_id, slot.species_const)
                     new_slots.append(WildSlot(slot.level, area_map[slot.species_const]))
-                new_grp = copy.copy(grp)
-                new_grp.slots = new_slots
-                result.append(new_grp)
+                result.append(_copy_with(grp, new_slots))
             return result
 
-        # Fully random
+        # Fully random (type themed = one random type per area)
         result = []
         for grp in wild_groups:
+            area_pool = self._type_pool(pool) if rule == "type_themed" else pool
             new_slots = []
             for slot in grp.slots:
-                new_id = self._pick_by_rule(slot.species_id, pool, rule)
+                new_id = self._pick_by_rule(slot.species_id, area_pool, rule)
                 new_slots.append(WildSlot(slot.level, POKEMON_CONST_NAMES.get(new_id, slot.species_const)))
-            new_grp = copy.copy(grp)
-            new_grp.slots = new_slots
-            result.append(new_grp)
+            result.append(_copy_with(grp, new_slots))
         return result
 
-    def _pick_by_rule(self, original_id: int, pool: list, rule: str) -> int:
+    def _pick_by_rule(self, original_id: int, pool: list, rule: str,
+                      exclude: set = None) -> int:
+        """Pick a replacement honouring the wild rule. ``exclude`` keeps 1-to-1
+        mappings injective while the pool allows it."""
+        cands = [p for p in pool if p not in exclude] if exclude else pool
+        if not cands:
+            cands = pool
         if rule == "similar_strength":
-            return self._pick_similar_bst(original_id, pool)
-        if rule == "catch_em_all":
-            return self._pick(pool)  # caller handles uniqueness if desired
-        if rule == "type_themed":
-            # Match primary type of original
-            from static_data import POKEMON_TYPES
-            orig_types = POKEMON_TYPES.get(original_id, ("normal", "normal"))
-            orig_type  = orig_types[0]
-            typed_pool = [p for p in pool if POKEMON_TYPES.get(p, ("normal",))[0] == orig_type]
-            if typed_pool:
-                return self.rng.choice(typed_pool)
-        return self._pick(pool)
+            return self._pick_similar_bst(original_id, cands)
+        return self._pick(cands)
 
     # ── Fishing ───────────────────────────────────────────────────────────────
+
+    def _fish_pick(self, slot_species: str, slot_id: int, pool: list) -> str:
+        """Fishing follows the wild settings: global 1-to-1 reuses the land
+        mapping, similar-strength stays close in BST, otherwise random."""
+        s = self.settings
+        if s.wild_mode == "global1to1":
+            gmap = getattr(self, "_global_map", None)
+            if gmap is None:
+                gmap = self._global_map = {}
+            if slot_species not in gmap:
+                used = {POKEMON_CONSTANTS.get(v, 0) for v in gmap.values()}
+                new_id = self._pick_by_rule(slot_id, pool, s.wild_rule, exclude=used)
+                gmap[slot_species] = POKEMON_CONST_NAMES.get(new_id, slot_species)
+            return gmap[slot_species]
+        new_id = self._pick_by_rule(slot_id, pool, s.wild_rule)
+        return POKEMON_CONST_NAMES.get(new_id, slot_species)
 
     def randomize_fishing_simple(self, slots: list, rod_name: str) -> list:
         """Randomize old-rod or good-rod global slot list."""
@@ -312,8 +412,7 @@ class YellowRandomizerEngine:
         pool = self._build_pool(no_legendaries=s.fishing_no_legendaries)
         result = []
         for slot in slots:
-            new_id    = self._pick(pool)
-            new_const = POKEMON_CONST_NAMES.get(new_id, slot.species_const)
+            new_const = self._fish_pick(slot.species_const, slot.species_id, pool)
             self.log(f"  {rod_name}: {slot.species_const} → {new_const}")
             result.append(FishSlot(slot.level, new_const))
         return result
@@ -326,8 +425,7 @@ class YellowRandomizerEngine:
         for entry in entries:
             new_slots = []
             for slot in entry.slots:
-                new_id    = self._pick(pool)
-                new_const = POKEMON_CONST_NAMES.get(new_id, slot.species_const)
+                new_const = self._fish_pick(slot.species_const, slot.species_id, pool)
                 new_slots.append(SuperRodSlot(new_const, slot.level))
             new_entry = copy.copy(entry)
             new_entry.slots = new_slots
@@ -336,62 +434,66 @@ class YellowRandomizerEngine:
 
     # ── Trainers ─────────────────────────────────────────────────────────────
 
+    def _trainer_pick(self, orig_id: int, pool: list) -> int:
+        if self.settings.trainer_similar_strength:
+            return self._pick_similar_bst(orig_id, pool)
+        return self._pick(pool)
+
     def randomize_trainers(self, trainers: list) -> list:
         s = self.settings
+        pool_normal = self._build_pool(no_legendaries=s.trainer_no_legendaries)
+        pool_boss   = self._build_pool(no_legendaries=s.trainer_boss_no_legendaries)
+
+        # Even distribution: one shuffled deck dealt across every slot in the game
+        deck = None
+        if s.trainer_mode == "random_even":
+            deck = list(pool_normal)
+            self.rng.shuffle(deck)
+        deal = 0
 
         result = []
+        replaced = forced = 0
         for trainer in trainers:
             is_boss = self._is_boss(trainer)
-            no_leg  = s.trainer_boss_no_legendaries if is_boss else s.trainer_no_legendaries
-            pool    = self._build_pool(no_legendaries=no_leg)
+            pool    = pool_boss if is_boss else pool_normal
+
+            # Type themed: one random type per trainer (all trainers, or bosses only)
+            themed = (s.trainer_mode == "type_themed" or
+                      (s.trainer_mode == "type_themed_boss" and is_boss))
+            if themed:
+                pool = self._type_pool(pool, weighted=s.trainer_weight_types)
 
             new_party = []
             for mon in trainer.party:
-                orig_id = mon.species_id
-
-                if s.trainer_mode in ("random", "random_even"):
-                    new_id = self._pick(pool)
-                elif s.trainer_mode == "type_themed":
-                    from static_data import POKEMON_TYPES
-                    orig_types = POKEMON_TYPES.get(orig_id, ("normal", "normal"))
-                    typed_pool = [p for p in pool
-                                  if POKEMON_TYPES.get(p, ("normal",))[0] == orig_types[0]]
-                    new_id = self.rng.choice(typed_pool) if typed_pool else self._pick(pool)
-                elif s.trainer_mode == "type_themed_boss" and is_boss:
-                    from static_data import POKEMON_TYPES
-                    orig_types = POKEMON_TYPES.get(orig_id, ("normal", "normal"))
-                    typed_pool = [p for p in pool
-                                  if POKEMON_TYPES.get(p, ("normal",))[0] == orig_types[0]]
-                    new_id = self.rng.choice(typed_pool) if typed_pool else self._pick(pool)
+                if deck is not None:
+                    new_id = deck[deal % len(deck)]
+                    deal += 1
                 else:
-                    new_id = self._pick(pool)
-
+                    new_id = self._trainer_pick(mon.species_id, pool)
                 new_const = POKEMON_CONST_NAMES.get(new_id, mon.species_const)
-                level     = mon.level
+                new_party.append(TrainerPokemon(level=mon.level, species_const=new_const))
+                replaced += 1
 
-                # Force fully evolved: push species to final evo if level is high enough
-                if s.trainer_force_fully_evolved and self._level_evo_map:
-                    min_lv = self._final_evo_level(new_const)
-                    if level >= s.trainer_force_evo_level and min_lv > level:
-                        # Find a species in pool that IS fully evolved at this level
-                        alt_pool = [p for p in pool
-                                    if self._final_evo_level(POKEMON_CONST_NAMES.get(p, '')) <= level]
-                        if alt_pool:
-                            new_id    = self.rng.choice(alt_pool)
-                            new_const = POKEMON_CONST_NAMES.get(new_id, new_const)
-
-                new_party.append(TrainerPokemon(level=level, species_const=new_const))
+            if s.trainer_force_fully_evolved:
+                forced += self._force_evolve_party(new_party)
 
             new_trainer       = copy.copy(trainer)
             new_trainer.party = new_party
             result.append(new_trainer)
+
+        label = {"random_even": "Even distribution", "type_themed": "Type themed",
+                 "type_themed_boss": "Type themed (bosses)"}.get(s.trainer_mode, "Random")
+        self.log(f"  {label}: {replaced} Pokémon replaced across {len(result)} trainers.")
+        if s.trainer_force_fully_evolved:
+            self.log(f"  Force fully evolved (lv ≥ {s.trainer_force_evo_level}): {forced} Pokémon evolved.")
         return result
 
     # ── Static encounters ─────────────────────────────────────────────────────
 
     def randomize_static(self, encounters: list) -> list:
         s    = self.settings
-        pool = self._build_pool(no_legendaries=True)  # always exclude legendaries for static
+        # "random" = anything goes; swap / similar-strength keep gifts non-legendary
+        pool = self._build_pool(no_legendaries=(s.static_mode != "random"))
 
         result = []
         for enc in encounters:
@@ -449,16 +551,34 @@ class YellowRandomizerEngine:
     # ── Field items ───────────────────────────────────────────────────────────
 
     def randomize_field_items(self, items: list) -> list:
+        """
+        Modes: shuffle (redistribute existing items), random (each slot from
+        the pool), random_even (pool dealt evenly). Key items are never in
+        the pool; "Ban Bad Items" additionally drops cheap consumables.
+        """
+        from item_data import YELLOW_FIELD_ITEM_POOL_FULL, YELLOW_FIELD_ITEM_POOL_GOOD
         s = self.settings
-        if s.field_items_ban_bad:
-            pool = [i for i in GOOD_FIELD_ITEMS]
+        mode = s.field_items_mode
+        pool = list(YELLOW_FIELD_ITEM_POOL_GOOD if s.field_items_ban_bad
+                    else YELLOW_FIELD_ITEM_POOL_FULL)
+        if not pool:
+            pool = list(GOOD_FIELD_ITEMS)
+
+        if mode == "shuffle":
+            consts = [i.item_const for i in items]
+            self.rng.shuffle(consts)
+            picks = consts
+        elif mode == "random_even":
+            deck = list(pool)
+            self.rng.shuffle(deck)
+            picks = [deck[i % len(deck)] for i in range(len(items))]
         else:
-            pool = GOOD_FIELD_ITEMS + list(BAD_FIELD_ITEMS)
+            picks = [self.rng.choice(pool) for _ in items]
 
         result = []
-        for item in items:
-            new_const = self.rng.choice(pool)
-            self.log(f"  Field item: {item.item_const} → {new_const}")
+        for item, new_const in zip(items, picks):
+            if new_const != item.item_const:
+                self.log(f"  Field item: {item.item_const} → {new_const}")
             new_item            = copy.copy(item)
             new_item.item_const = new_const
             result.append(new_item)

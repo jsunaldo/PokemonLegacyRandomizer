@@ -85,6 +85,7 @@ class RandomizerSettings:
     trainer_force_evo_level: int = 30          # threshold for force-fully-evolved (30–65)
     rival_starter_ids: list = field(default_factory=list)   # [id,id,id] populated at runtime
     rival_level_evo_map: dict = field(default_factory=dict) # from parser.level_evo_map
+    full_evo_map: dict = field(default_factory=dict)        # from parser.full_evo_map (all methods)
 
     # Field items
     # Mode: "unchanged" | "random"
@@ -108,6 +109,12 @@ class RandomizerEngine:
         self.settings = settings
         self.log = log_fn or print
         self.rng = random.Random(settings.seed)
+        # Global 1-to-1 mapping shared by wild grass/water and fishing so the
+        # "one mapping for the whole game" promise holds across both.
+        self._global_1to1_map: dict = {}
+        # Branch chosen for split evolutions (Eevee, Tyrogue…) per base species,
+        # so a rival's starter evolves the same way in every battle.
+        self._evo_branch_choice: dict = {}
 
     def _build_pool(self, no_legendaries=True, no_babies=False,
                     gen1_only=False, gen2_only=False) -> list:
@@ -428,8 +435,9 @@ class RandomizerEngine:
         if s.wild_mode == "global1to1":
             mapping = self._build_1to1_mapping(
                 [slot.species_const for grp in encounters for slot in grp.slots],
-                pool,
+                pool, existing=self._global_1to1_map,
             )
+            self._global_1to1_map = mapping
             total = 0
             for grp in new_encounters:
                 for slot in grp.slots:
@@ -530,11 +538,13 @@ class RandomizerEngine:
         new_slots = copy.deepcopy(slots)
 
         if s.wild_mode == "global1to1":
-            # Re-use the global mapping already built for wild encounters when
-            # possible; here we build a fresh one just for fish (same semantics).
+            # Extend the mapping built for grass/water so a species fished up
+            # maps to the same replacement it has on land.
             mapping = self._build_1to1_mapping(
-                [sl.species_const for sl in slots], pool
+                [sl.species_const for sl in slots], pool,
+                existing=self._global_1to1_map,
             )
+            self._global_1to1_map = mapping
             for sl in new_slots:
                 sl.species_const = mapping.get(sl.species_const, sl.species_const)
             self.log(
@@ -583,20 +593,26 @@ class RandomizerEngine:
 
     # ── Wild helpers ──────────────────────────────────────────────────────────
 
-    def _build_1to1_mapping(self, species_list: list, pool: list) -> dict:
+    def _build_1to1_mapping(self, species_list: list, pool: list,
+                            existing: dict = None) -> dict:
         """
         Build a {original_const: replacement_const} mapping that is injective
         (no two originals map to the same replacement, as long as pool allows).
         Uses BST-similarity when wild_rule == "similar_strength".
+
+        ``existing`` seeds the mapping (and its used set) so several callers
+        can share one consistent global mapping.
         """
         s = self.settings
         unique_originals = list(dict.fromkeys(species_list))   # preserve order, dedupe
         available = list(pool)
         self.rng.shuffle(available)
 
-        used    = set()
-        mapping = {}
+        mapping = dict(existing or {})
+        used    = {POKEMON_CONSTANTS.get(v, 0) for v in mapping.values()}
         for orig_const in unique_originals:
+            if orig_const in mapping:
+                continue
             remaining = [p for p in available if p not in used]
             if not remaining:
                 remaining = available   # wrap if pool exhausted
@@ -708,9 +724,11 @@ class RandomizerEngine:
         else:  # "random"
             self._trainer_random(new_trainers, pool_normal, pool_boss)
 
-        # Apply rival starter lock after main randomization
+        # Apply rival starter lock after main randomization. The ORIGINAL
+        # parties tell us which lineage each rival battle belongs to (the
+        # randomized copies no longer contain the original starter).
         if s.trainer_rival_starter:
-            self._apply_rival_starter(new_trainers)
+            self._apply_rival_starter(new_trainers, originals=trainers)
 
         # Force fully-evolved applies last, on top of everything else
         if s.trainer_force_fully_evolved:
@@ -828,36 +846,71 @@ class RandomizerEngine:
 
     def _is_rival_trainer(self, trainer) -> bool:
         """Return True if this trainer is the player's rival."""
-        name_upper  = trainer.name.upper()
-        class_upper = trainer.trainer_class.upper()
-        for kw in self.settings.rival_trainer_keywords:
-            if kw in name_upper or kw in class_upper:
+        tokens = self._trainer_tokens(trainer)
+        for tok in tokens:
+            if tok.startswith(tuple(self.settings.rival_trainer_keywords)):
                 return True
         return False
 
-    def _get_level_evo_stage(self, base_id: int, level: int) -> int:
+    _LEVEL_EVO_KINDS = frozenset({"LEVEL", "EVOLVE_LEVEL"})
+
+    def _evo_options(self, species_id: int) -> list:
+        """[(target_id, evo_type, param)] for every way species_id evolves."""
+        full = self.settings.full_evo_map
+        if full:
+            return list(full.get(species_id, []))
+        # Fallback for callers that only supplied the level map
+        return [(t, "EVOLVE_LEVEL", str(lv))
+                for (t, lv) in self.settings.rival_level_evo_map.get(species_id, [])]
+
+    def _choose_branch(self, base_id: int, options: list) -> int:
+        """Pick (and remember) one branch of a split evolution."""
+        key = base_id
+        if key not in self._evo_branch_choice:
+            self._evo_branch_choice[key] = self.rng.choice(options)[0]
+        return self._evo_branch_choice[key]
+
+    def _get_level_evo_stage(self, base_id: int, level: int,
+                             stage_levels=(16, 36)) -> int:
         """
-        Walk the level_evo_map forward from base_id and return the highest
-        evolution stage the Pokémon would have reached by `level`.
+        Walk the evolution chain forward from base_id and return the stage
+        the Pokémon would have reached by `level`.
+
+        Level evolutions use their real level. Item / happiness / trade
+        evolutions have no level, so they fire at the level the ORIGINAL
+        starter lineage evolved at (stage_levels) — e.g. a rival Eevee
+        becomes an Eeveelution when Chikorita would have become Bayleef.
         """
-        evo_map = self.settings.rival_level_evo_map
         current = base_id
-        for _ in range(3):   # max 3-stage chain
-            evos = evo_map.get(current, [])
-            # Pick the highest-level evolution we have already reached
+        for stage in range(3):   # max 3-stage chain
+            options = self._evo_options(current)
+            if not options:
+                break
             best_target, best_lv = None, -1
-            for (target_id, evo_level) in evos:
-                if level >= evo_level and evo_level > best_lv:
-                    best_target, best_lv = target_id, evo_level
+            for (target_id, kind, param) in options:
+                if kind in self._LEVEL_EVO_KINDS:
+                    try:
+                        lv = int(param)
+                    except (TypeError, ValueError):
+                        continue
+                    if level >= lv and lv > best_lv:
+                        best_target, best_lv = target_id, lv
+            if best_target is None:
+                non_level = [o for o in options if o[1] not in self._LEVEL_EVO_KINDS]
+                threshold = stage_levels[min(stage, len(stage_levels) - 1)]
+                if non_level and level >= threshold:
+                    best_target = self._choose_branch(current, non_level)
             if best_target is None:
                 break
             current = best_target
         return current
 
-    def _apply_rival_starter(self, trainers: list):
+    def _apply_rival_starter(self, trainers: list, originals: list = None):
         """
-        Lock each rival trainer's first party slot to an appropriate evolution
+        Lock each rival trainer's starter slot to an appropriate evolution
         of the randomized starter assigned to the rival's lineage position.
+        ``originals`` are the un-randomized parties (same order) used to
+        identify the rival's starter slot and lineage.
 
         Crystal rival lineage mapping
         ─────────────────────────────
@@ -880,20 +933,41 @@ class RandomizerEngine:
         # Counter-starter mapping: lineage_idx → which rival_starter_ids slot to use
         COUNTER = {0: 2, 1: 0, 2: 1}
 
+        # Levels at which each ORIGINAL lineage evolves (from the source), used
+        # as the trigger for item/happiness evolutions of the replacement.
+        def _chain_levels(chain):
+            levels = []
+            for a, b in zip(chain, chain[1:]):
+                lv = next((l for (t, l) in s.rival_level_evo_map.get(a, []) if t == b), None)
+                levels.append(lv)
+            defaults = (16, 36)
+            return tuple(lv if lv is not None else defaults[i] for i, lv in enumerate(levels))
+        lineage_levels = [_chain_levels(c) for c in self._CRYSTAL_STARTER_CHAINS]
+
         rival_count = 0
-        for trainer in trainers:
+        originals = originals or trainers
+        for trainer, orig in zip(trainers, originals):
             if not self._is_rival_trainer(trainer) or not trainer.party:
                 continue
 
-            slot    = trainer.party[0]
-            orig_id = POKEMON_CONSTANTS.get(slot.species_const, 0)
+            # The rival's starter is whichever ORIGINAL party slot holds a
+            # starter-line species (not always slot 0 in later battles).
+            slot_idx = None
+            lineage_idx = None
+            for i, cand in enumerate(orig.party):
+                cid = POKEMON_CONSTANTS.get(cand.species_const, 0)
+                if cid in crystal_lookup:
+                    slot_idx, lineage_idx = i, crystal_lookup[cid]
+                    break
+            if slot_idx is None or slot_idx >= len(trainer.party):
+                slot_idx, lineage_idx = 0, 1   # default: Cyndaquil line
+            slot = trainer.party[slot_idx]
 
-            # Determine which original Crystal lineage the rival's slot belongs to
-            lineage_idx = crystal_lookup.get(orig_id, 1)   # default: Cyndaquil line
-            rand_base   = s.rival_starter_ids[COUNTER[lineage_idx]]
+            rand_base = s.rival_starter_ids[COUNTER[lineage_idx]]
 
             # Get the right evolution stage for this battle's level
-            appropriate_id = self._get_level_evo_stage(rand_base, slot.level)
+            appropriate_id = self._get_level_evo_stage(
+                rand_base, slot.level, lineage_levels[lineage_idx])
             slot.species_const = POKEMON_CONST_NAMES.get(appropriate_id, slot.species_const)
             rival_count += 1
 
@@ -1056,12 +1130,26 @@ class RandomizerEngine:
         candidates = sorted_pool[:20]   # top 20 closest by BST
         return self._pick(candidates)
 
+    # Class/name tokens that start a boss group: "RIVAL1 (2)", "EXECUTIVEM (1)"
+    _BOSS_TOKEN_PREFIXES = ("RIVAL", "EXECUTIVE", "LEADER", "ELITE", "CHAMPION", "ROCKET_EXEC")
+    # Extra exact tokens beyond the configurable class list
+    _BOSS_TOKENS_EXTRA = frozenset({"RED", "BOSS", "GIOVANNI", "SURGE", "LT_SURGE"})
+
+    def _trainer_tokens(self, trainer) -> list:
+        """Upper-case word tokens from the trainer's name and class comment."""
+        import re as _re
+        text = f"{trainer.trainer_class} {trainer.name}".upper()
+        return _re.findall(r"[A-Z0-9_]+", text)
+
     def _is_boss_trainer(self, trainer: Trainer) -> bool:
-        """Detect gym leaders, Elite Four, rivals, and executives."""
-        name_upper = trainer.name.upper()
-        class_upper = trainer.trainer_class.upper()
-        for kw in self.settings.boss_trainer_classes:
-            if kw in name_upper or kw in class_upper:
+        """Detect gym leaders, Elite Four, rivals, executives and Giovanni.
+
+        Matches whole tokens (so WILLIAM is not mistaken for WILL, and
+        ALFRED is not RED)."""
+        tokens = self._trainer_tokens(trainer)
+        keys = {k.rstrip("_") for k in self.settings.boss_trainer_classes} | self._BOSS_TOKENS_EXTRA
+        for tok in tokens:
+            if tok in keys or tok.startswith(self._BOSS_TOKEN_PREFIXES):
                 return True
         return False
 
@@ -1069,22 +1157,21 @@ class RandomizerEngine:
 
     def _get_final_evo(self, species_id: int) -> int:
         """
-        Follow the level_evo_map chain from species_id to its final form.
-        If a Pokémon has multiple branches (e.g. Tyrogue), one is chosen at random.
-        Returns species_id unchanged if no further level evolutions exist.
+        Follow the evolution chain (every method: level, stone, happiness,
+        trade, stat) from species_id to its final form.
+        If a Pokémon has multiple branches (e.g. Eevee, Tyrogue), one is
+        chosen at random. Returns species_id unchanged if already final.
         """
-        evo_map = self.settings.rival_level_evo_map
         current = species_id
         visited = set()
         while True:
             if current in visited:
                 break               # cycle guard
             visited.add(current)
-            evos = evo_map.get(current, [])
-            if not evos:
+            options = self._evo_options(current)
+            if not options:
                 break               # already at final form
-            # Pick a branch at random (handles split evolutions like Tyrogue)
-            current = self.rng.choice(evos)[0]
+            current = self.rng.choice(options)[0]
         return current
 
     def _apply_force_fully_evolved(self, trainers: list):

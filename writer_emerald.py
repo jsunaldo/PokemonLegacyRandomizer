@@ -436,22 +436,25 @@ class EmeraldSourceWriter:
         search_dir = os.path.join(self.out_dir, "data", "maps")
         macro_re   = re.compile(r'(?m)^\s*(?:pokemart|mart)\s+(\w+)')
 
+        # Match on the MAP FOLDER NAME (e.g. OldaleTown_Mart,
+        # EverGrandeCity_PokemonLeague_1F) — never on file contents, which
+        # would pick whichever unrelated script happens to mention the word.
         target = None
-        for root, _dirs, files in os.walk(search_dir):
-            for fn in files:
-                if not fn.endswith(".inc"):
+        if os.path.isdir(search_dir):
+            for map_name in sorted(os.listdir(search_dir)):
+                if label_substr.lower() not in map_name.lower():
                     continue
-                path = os.path.join(root, fn)
+                path = os.path.join(search_dir, map_name, "scripts.inc")
+                if not os.path.isfile(path):
+                    continue
                 try:
                     with open(path, "r", encoding="utf-8", errors="replace") as fh:
                         contents = fh.read()
                 except OSError:
                     continue
-                if macro_re.search(contents) and label_substr.lower() in contents.lower():
+                if macro_re.search(contents):
                     target = path
                     break
-            if target:
-                break
 
         if not target:
             self._log(f"  [WARN] No mart found matching '{label_substr}' - shop patch skipped")

@@ -23,3 +23,6 @@ __pycache__/
 
 # Release zips
 *.zip
+
+# Local editor / preview config
+.claude/

@@ -200,6 +200,20 @@ class StatusWindow:
     # ── Close ─────────────────────────────────────────────────────────────────
 
     def _on_close(self):
+        # A randomize/build may be running in the server thread — closing the
+        # window kills it half-way. Ask first.
+        try:
+            m = sys.modules.get("main")
+            if m is not None and getattr(m, "_job_running", False):
+                from tkinter import messagebox
+                if not messagebox.askyesno(
+                        "Pokemon Legacy Randomizer",
+                        "A randomization / ROM build is still running.\n\n"
+                        "Stop the server anyway? The current run will be aborted "
+                        "and its output folder may be left half-written."):
+                    return
+        except Exception:
+            pass
         self.root.destroy()
         # Force-exit so the whole process ends cleanly
         os._exit(0)

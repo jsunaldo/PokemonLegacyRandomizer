@@ -201,6 +201,7 @@ class YellowLegacyParser:
         self.starters: list[StarterLocation] = []
         self.static_encounters: list[StaticEncounter] = []
         self.field_items: list[FieldItem] = []
+        self.protected_field_items: list = []   # (item, file) key items left in place
         self.evolutions: list[EvolutionEntry] = []
         self.tmhm_compat: list[TMHMCompatEntry] = []
         self.init_player_data_src: str = ""
@@ -623,6 +624,12 @@ class YellowLegacyParser:
         from data/maps/objects/*.asm and hidden items (hidden_object … HiddenItems)
         from data/events/hidden_objects.asm.
         """
+        # Key items (Lift Key, Silph Scope, Card Key, Secret Key, Gold Teeth…)
+        # are never collected, so no mode can move or replace them.
+        from key_items import key_items
+        protected = key_items("yellow", self.source_dir)
+        self.protected_field_items = []
+
         # Visible: last token of  object_event X, Y, SPRITE_POKE_BALL, STAY, NONE, TEXT_ID, ITEM_CONST
         objects_dir = self._path("data", "maps", "objects")
         if os.path.isdir(objects_dir):
@@ -638,7 +645,9 @@ class YellowLegacyParser:
                             item_const = parts[-1]
                             # Strip any trailing comment
                             item_const = item_const.split(';')[0].strip()
-                            if item_const and not item_const.startswith('0'):
+                            if item_const in protected:
+                                self.protected_field_items.append((item_const, rel))
+                            elif item_const and not item_const.startswith('0'):
                                 self.field_items.append(FieldItem(
                                     item_const=item_const, item_type='visible',
                                     source_file=rel, line_index=i, full_line=line,
@@ -653,7 +662,9 @@ class YellowLegacyParser:
             if m:
                 item_const = m.group(1)
                 routine    = m.group(2)
-                if routine == 'HiddenItems':
+                if routine == 'HiddenItems' and item_const in protected:
+                    self.protected_field_items.append((item_const, rel_hidden))
+                elif routine == 'HiddenItems':
                     self.field_items.append(FieldItem(
                         item_const=item_const, item_type='hidden',
                         source_file=rel_hidden, line_index=i, full_line=line,
@@ -850,7 +861,10 @@ class YellowLegacyParser:
 
         self.log("  Parsing field items...")
         self._parse_field_items()
-        self.log(f"    → {len(self.field_items)} field items")
+        self.log(f"    → {len(self.field_items)} field items"
+                 + (f" ({len(self.protected_field_items)} key item(s) left in place: "
+                    + ", ".join(sorted({k for k, _ in self.protected_field_items})) + ")"
+                    if self.protected_field_items else ""))
 
         self.log("  Parsing evolutions...")
         self._parse_evolutions()

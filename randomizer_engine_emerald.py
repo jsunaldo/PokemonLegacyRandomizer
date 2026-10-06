@@ -127,12 +127,48 @@ class EmeraldRandomizerEngine:
         self._numbers = species_numbers
         self._log     = log_fn or (lambda msg: None)
 
-        # Seed the RNG
-        if settings.seed is not None:
-            random.seed(settings.seed)
+        # Own RNG instance (same sequence as the old global random.seed(),
+        # but independent of anything else that touches `random`).
+        self.rng = random.Random(settings.seed)
+        self._evo_graph: dict = {}
+        self._evo_branch_choice: dict = {}
 
         # Build the filtered species pool
         self._pool = self._build_pool(species_consts)
+
+    def set_evolution_graph(self, graph: dict):
+        """{species_const: [target_const, ...]} for every evolution method."""
+        self._evo_graph = dict(graph or {})
+
+    def _final_evolution(self, species: str) -> str:
+        """Follow the evolution graph to a final form; split lines pick one
+        branch at random and remember it per base species."""
+        current = species
+        seen = set()
+        while current not in seen:
+            seen.add(current)
+            options = self._evo_graph.get(current, [])
+            if not options:
+                break
+            if current not in self._evo_branch_choice:
+                self._evo_branch_choice[current] = self.rng.choice(options)
+            current = self._evo_branch_choice[current]
+        return current
+
+    def _force_evolve_parties(self, parties: list) -> int:
+        """Force Fully Evolved: mons at/above the threshold become their
+        final form. Returns the number changed."""
+        threshold = self.s.trainer_force_evo_level
+        changed = 0
+        for party in parties:
+            for mon in party.mons:
+                if mon.level < threshold:
+                    continue
+                final = self._final_evolution(mon.species)
+                if final != mon.species:
+                    mon.species = final
+                    changed += 1
+        return changed
 
     # -----------------------------------------------------------------------
     # Pool construction
@@ -176,7 +212,7 @@ class EmeraldRandomizerEngine:
                 filtered = pool
         else:
             filtered = pool
-        return random.choice(filtered)
+        return self.rng.choice(filtered)
 
     def _pick_bst(self, pool: list, target_bst: int, tolerance: float = 0.30,
                   exclude: set = None) -> str:
@@ -188,7 +224,7 @@ class EmeraldRandomizerEngine:
                       and (not exclude or c not in exclude)]
         if not candidates:
             candidates = pool
-        return random.choice(candidates)
+        return self.rng.choice(candidates)
 
     # -----------------------------------------------------------------------
     # Starters
@@ -260,7 +296,7 @@ class EmeraldRandomizerEngine:
                         all_slots.extend(fishing.get("mons") or [])
 
             shuffled = list(pool)
-            random.shuffle(shuffled)
+            self.rng.shuffle(shuffled)
             for i, slot in enumerate(all_slots):
                 if slot.get("species"):
                     slot["species"] = shuffled[i % len(shuffled)]
@@ -279,7 +315,7 @@ class EmeraldRandomizerEngine:
 
                 # Type themed: pick one type per area, filter pool to it
                 if rule == "type_themed":
-                    chosen_type = random.choice(ALL_TYPES)
+                    chosen_type = self.rng.choice(ALL_TYPES)
                     area_pool = [c for c in pool
                                  if chosen_type in SPECIES_TYPES.get(c, [])]
                     area_pool = area_pool if area_pool else pool
@@ -323,18 +359,24 @@ class EmeraldRandomizerEngine:
 
             elif mode == "area1to1":
                 if orig not in area_map:
-                    area_map[orig] = self._pick(pool, exclude=set(area_map.values()))
+                    area_map[orig] = self._pick_1to1(orig, pool, set(area_map.values()))
                 new = area_map[orig]
 
             elif mode == "global1to1":
                 if orig not in global_map:
-                    global_map[orig] = self._pick(pool, exclude=set(global_map.values()))
+                    global_map[orig] = self._pick_1to1(orig, pool, set(global_map.values()))
                 new = global_map[orig]
 
             else:
                 new = orig
 
             slot["species"] = new
+
+    def _pick_1to1(self, orig: str, pool: list, used: set) -> str:
+        """Injective pick for 1-to-1 modes, honouring similar-strength."""
+        if self.s.wild_rule == "similar_strength":
+            return self._pick_bst(pool, self._bst.get(orig, 400), exclude=used)
+        return self._pick(pool, exclude=used)
 
     def _count_wild_slots(self, wild_json: dict) -> int:
         count = 0
@@ -365,7 +407,7 @@ class EmeraldRandomizerEngine:
         if mode == "random_even":
             all_slots = [mon for party in parties for mon in party.mons]
             shuffled  = list(pool_normal)
-            random.shuffle(shuffled)
+            self.rng.shuffle(shuffled)
             flat_new  = [shuffled[i % len(shuffled)] for i in range(len(all_slots))]
             idx = 0
             for party in parties:
@@ -383,6 +425,9 @@ class EmeraldRandomizerEngine:
                     source_file=party.source_file,
                 ))
             self._log(f"  Even distribution: {changed} trainer Pokémon across {len(result)} parties")
+            if self.s.trainer_force_fully_evolved:
+                n = self._force_evolve_parties(result)
+                self._log(f"  Force fully evolved (lv ≥ {self.s.trainer_force_evo_level}): {n} Pokémon evolved.")
             return result
 
         # ── Type Themed helpers ───────────────────────────────────────────
@@ -396,9 +441,9 @@ class EmeraldRandomizerEngine:
                         type_counts[t] = type_counts.get(t, 0) + 1
                 types  = list(type_counts.keys())
                 counts = [type_counts[t] for t in types]
-                chosen = random.choices(types, weights=counts, k=1)[0]
+                chosen = self.rng.choices(types, weights=counts, k=1)[0]
             else:
-                chosen = random.choice(ALL_TYPES)
+                chosen = self.rng.choice(ALL_TYPES)
             typed = [c for c in base_pool if chosen in SPECIES_TYPES.get(c, [])]
             return typed if typed else base_pool
 
@@ -433,6 +478,9 @@ class EmeraldRandomizerEngine:
             ))
 
         self._log(f"  Randomized {changed} trainer Pokémon across {len(result)} part(ies)")
+        if self.s.trainer_force_fully_evolved:
+            n = self._force_evolve_parties(result)
+            self._log(f"  Force fully evolved (lv ≥ {self.s.trainer_force_evo_level}): {n} Pokémon evolved.")
         return result
 
     # -----------------------------------------------------------------------
@@ -534,9 +582,9 @@ class EmeraldRandomizerEngine:
 
         result = []
         for e in entries:
-            a1 = random.choice(pool)
+            a1 = self.rng.choice(pool)
             if e.ability2 != "ABILITY_NONE":
-                a2 = random.choice([a for a in pool if a != a1])
+                a2 = self.rng.choice([a for a in pool if a != a1])
             else:
                 a2 = "ABILITY_NONE"
             result.append(type(e)(species=e.species, ability1=a1, ability2=a2,
@@ -564,7 +612,7 @@ class EmeraldRandomizerEngine:
 
         new_entries = copy.deepcopy(entries)
         for e in new_entries:
-            e.item = random.choice(pool)
+            e.item = self.rng.choice(pool)
 
         self._log(f"  Wild held items: randomized {len(new_entries)} slot(s).")
         return new_entries
@@ -601,8 +649,8 @@ class EmeraldRandomizerEngine:
 
             leg_species = [st.species for st in legends]
             std_species = [st.species for st in standards]
-            random.shuffle(leg_species)
-            random.shuffle(std_species)
+            self.rng.shuffle(leg_species)
+            self.rng.shuffle(std_species)
 
             leg_map = {id(st): sp for st, sp in zip(legends, leg_species)}
             std_map = {id(st): sp for st, sp in zip(standards, std_species)}
@@ -659,11 +707,11 @@ class EmeraldRandomizerEngine:
 
         def _rand_name(max_len: int) -> str:
             chars = _string.ascii_uppercase + _string.digits
-            length = random.randint(3, max_len)
-            return "".join(random.choice(chars) for _ in range(length))
+            length = self.rng.randint(3, max_len)
+            return "".join(self.rng.choice(chars) for _ in range(length))
 
         def _rand_ivs() -> str:
-            vals = [str(random.randint(0, 31)) for _ in range(6)]
+            vals = [str(self.rng.randint(0, 31)) for _ in range(6)]
             return "{" + ", ".join(vals) + "}"
 
         replaced = 0
@@ -689,7 +737,7 @@ class EmeraldRandomizerEngine:
                 t.ivs_raw = _rand_ivs()
 
             if self.s.trade_rand_items_flag and t.held_item_line >= 0:
-                t.held_item = random.choice(list(FIELD_ITEM_POOL))
+                t.held_item = self.rng.choice(list(FIELD_ITEM_POOL))
 
         self._log(f"  Randomized {replaced} in-game trade(s).")
         return result
@@ -714,7 +762,7 @@ class EmeraldRandomizerEngine:
 
         if mode == "shuffle":
             items = [fi.item_const for fi in field_items]
-            random.shuffle(items)
+            self.rng.shuffle(items)
             result = [
                 FieldItem(item_const=items[i], source_file=fi.source_file, line_index=fi.line_index)
                 for i, fi in enumerate(field_items)
@@ -730,7 +778,7 @@ class EmeraldRandomizerEngine:
 
         if mode == "random_even":
             shuffled = list(pool)
-            random.shuffle(shuffled)
+            self.rng.shuffle(shuffled)
             result = [
                 FieldItem(
                     item_const=shuffled[i % len(shuffled)],
@@ -746,7 +794,7 @@ class EmeraldRandomizerEngine:
         result = []
         for fi in field_items:
             result.append(FieldItem(
-                item_const=random.choice(pool),
+                item_const=self.rng.choice(pool),
                 source_file=fi.source_file,
                 line_index=fi.line_index,
             ))

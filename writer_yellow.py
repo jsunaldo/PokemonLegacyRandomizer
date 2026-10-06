@@ -260,13 +260,14 @@ class YellowSourceWriter:
 
         for orig, rand in zip(orig_trainers, rand_trainers):
             if orig.fmt == 'A':
-                # Single line: db LEVEL, SP1, SP2, ..., 0
+                # Single line: db LEVEL, SP1, SP2, ..., 0  (keep any trailing comment)
                 level  = orig.party[0].level if orig.party else 5
                 species = [p.species_const for p in rand.party]
-                new_line = f"\tdb {level}, {', '.join(species)}, 0\n"
                 i = orig.line_start
                 if i < len(lines):
-                    lines[i] = new_line
+                    cm = re.search(r'(;.*)$', lines[i].rstrip('\n'))
+                    comment = ('  ' + cm.group(1)) if cm else ''
+                    lines[i] = f"\tdb {level}, {', '.join(species)}, 0{comment}\n"
             else:
                 # Format B: db $FF, LV1, SP1, LV2, SP2, ..., 0
                 parts = ["$FF"]

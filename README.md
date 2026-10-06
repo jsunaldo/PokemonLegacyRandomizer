@@ -21,18 +21,20 @@ A randomizer for **SmithPlaysPokemon's Legacy ROM hacks** — **Yellow Legacy**,
 You need two things for whichever game(s) you want to randomize:
 
 ### 1. The game's source code
-Clone the matching repo and make sure it builds cleanly **on its own first**:
+The randomizer patches the hack's **source code** and compiles a fresh ROM — it does not
+patch an existing `.gbc` / `.gba` file. Easiest: click **⬇ Get source** next to the
+*Source Directory* field in the app; it clones the right repo into
+`~/Pokemon Legacy Sources/` and fills the field in. Or clone it yourself:
 ```bash
 git clone <one of the repos above>
-cd <repo>
-make
 ```
-If `make` produces a `.gb` / `.gbc` / `.gba` file, you're ready.
+(Optional: `cd` into it and run `make` once to confirm it builds on its own.)
 
 ### 2. The build toolchain
-- **Yellow & Crystal (GB/GBC):** [RGBDS](https://rgbds.gbdev.io/) — `brew install rgbds`
-  - Crystal Legacy expects **RGBDS 0.5.2**; Yellow Legacy expects **0.7.0**.
-- **Emerald (GBA):** [devkitARM](https://devkitpro.org/wiki/Getting_Started) + `agbcc` — the app can install these automatically on first build.
+On macOS the app installs the toolchains itself on the first build:
+- **Yellow & Crystal (GB/GBC):** the exact [RGBDS](https://rgbds.gbdev.io/) version each hack needs
+  (Crystal Legacy 0.5.2, Yellow Legacy 0.7.0) is downloaded into the app's own cache — no `brew`, no version conflicts.
+- **Emerald (GBA):** [devkitARM](https://devkitpro.org/wiki/Getting_Started) + `agbcc` (one-time, asks for your password).
 
 GNU Make is required for all three (comes with Xcode Command Line Tools: `xcode-select --install`).
 
@@ -70,9 +72,11 @@ directly; the built ROM stays in your output directory.
 
 1. Launch the app — a small status window appears and your browser opens to the launcher.
 2. Pick a game (Yellow / Crystal / Emerald).
-3. Set your **Source Directory** (the repo root — the folder containing the `Makefile`) and an **Output Directory** (a new, empty folder for the randomized copy). *The app remembers these between runs.*
+3. Set your **Source Directory** — the cloned source repo (click **Get source** if you don't have one) — and an **Output Directory** (a new, empty folder for the randomized copy). *The app remembers these between runs.*
 4. Configure options across the tabs, set or roll a **Seed**, and click **Randomize**.
-5. When it finishes, your ROM is in the Output Directory — load it in any compatible emulator (mGBA, BGB, etc.).
+5. When it finishes, a result panel shows the seed, the ROM path and *Reveal in Finder* / *Open output folder* buttons — load the ROM in any compatible emulator (mGBA, BGB, etc.). If the build fails, the first compiler error is shown right there.
+
+> The Output Directory is wiped on every run. The app only wipes a folder that is empty or that it created itself, so pick a new folder the first time.
 
 Each run also writes two helper files into the output folder:
 - **`spoiler_log.txt`** — what every Pokémon/item/trainer was changed into.
@@ -128,15 +132,27 @@ If you enjoy the randomizer, tips are appreciated (Bitcoin Lightning): **`salmon
 
 ## Troubleshooting
 
+**"The Output Directory is not empty and doesn't look like a folder this randomizer created"**
+- The app refuses to erase a folder it didn't create. Pick a new/empty folder, or a folder from a previous run.
+
 **"make failed" / compile error**
 - Verify the toolchain is installed (`rgbasm --version` for GB/GBC; devkitARM for GBA).
 - Make sure the game's source builds cleanly on its own *before* randomizing.
+
+**Build stops with a Rosetta message (Yellow / Crystal on Apple Silicon)**
+- The RGBDS versions these hacks need are Intel apps. Install Rosetta 2 once, then randomize again:
+  `softwareupdate --install-rosetta --agree-to-license`
 
 **App won't open / "damaged app" warning**
 - Right-click → **Open** instead of double-clicking (one-time Gatekeeper bypass), or run: `xattr -cr PokemonLegacyRandomizer.app`
 
 **0 wild encounters / starters found**
 - Make sure the Source Directory points to the repo root — the folder that contains the `Makefile`.
+
+**Builds fail or produce a corrupt ROM when the output folder is in Dropbox / iCloud**
+- Handled automatically: cloud-synced output folders are built in a local temp folder and the ROM is copied back.
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ---
 

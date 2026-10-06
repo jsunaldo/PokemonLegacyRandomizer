@@ -1,5 +1,5 @@
 """
-Pokemon Legacy Randomizer v1.0 — Web UI entry point
+Pokemon Legacy Randomizer — Web UI entry point
 
 Starts a local HTTP server, opens the UI in the default browser,
 and shuts down cleanly when the browser tab closes or the user clicks Quit.
@@ -7,6 +7,7 @@ and shuts down cleanly when the browser tab closes or the user clicks Quit.
 Requires only Python 3.6+ stdlib — no pip installs needed.
 """
 
+import hashlib
 import http.server
 import json
 import os
@@ -17,6 +18,8 @@ import sys
 import threading
 import webbrowser
 from urllib.parse import urlparse, parse_qs
+
+APP_VERSION = "1.2.0"
 
 # ---------------------------------------------------------------------------
 # Toolchain manager — auto-download RGBDS and devkitARM on first use
@@ -29,6 +32,28 @@ _TOOLCHAIN_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # Pinned RGBDS versions (game-specific requirements)
 _RGBDS_CRYSTAL = "0.5.2"   # Crystal Legacy requires exactly 0.5.2
 _RGBDS_YELLOW  = "0.7.0"   # Yellow Legacy: 0.6.0+ required; 0.8.0+ breaks EQU syntax → pin 0.7.0
+
+
+def _check_runs(bin_dir: str, version: str):
+    """Fail early, with the fix, when the RGBDS binaries can't execute.
+
+    Old RGBDS releases (0.5.2 / 0.7.0) only ship Intel macOS binaries. On an
+    Apple Silicon Mac without Rosetta 2 (e.g. after a macOS upgrade) every
+    build would otherwise die with a cryptic "make: rgbgfx: Bad CPU type"."""
+    exe = os.path.join(bin_dir, "rgbasm")
+    try:
+        subprocess.run([exe, "--version"], capture_output=True, timeout=20)
+    except OSError as exc:
+        if getattr(exc, "errno", None) == 86 or "Bad CPU type" in str(exc):
+            raise RuntimeError(
+                f"RGBDS v{version} (the assembler this game needs) is an Intel app, and "
+                "this Mac doesn't have Rosetta 2 installed, so it can't run.\n"
+                "Your source folder is untouched; the randomized source was saved to the output folder, only the ROM build failed.\n"
+                "Fix (one time): open Terminal, run\n"
+                "    softwareupdate --install-rosetta --agree-to-license\n"
+                "enter your Mac password when asked, then click Randomize again."
+            )
+        raise RuntimeError(f"RGBDS v{version} could not be started ({exc}).")
 
 
 def _ensure_rgbds(version: str, log_fn) -> str:
@@ -60,6 +85,7 @@ def _ensure_rgbds(version: str, log_fn) -> str:
     # Already cached and executable → done
     if os.path.isfile(rgbasm) and os.access(rgbasm, os.X_OK):
         log_fn(f"  RGBDS v{version} (cached)")
+        _check_runs(bin_dir, version)
         return bin_dir
 
     log_fn(f"  RGBDS v{version} not found locally — fetching from GitHub…")
@@ -172,6 +198,7 @@ def _ensure_rgbds(version: str, log_fn) -> str:
             "Please report this issue with the asset name above."
         )
 
+    _check_runs(bin_dir, version)
     log_fn(f"  RGBDS v{version} ready")
     return bin_dir
 
@@ -404,12 +431,43 @@ _log_lines   = []          # accumulated log output
 _job_running = False       # True while randomization is in progress
 _job_done    = False       # True when last job finished
 _job_error   = None        # error string if job failed
+_job_info    = {}          # game / seed / phase / rom_path / out_dir of the current job
 _shutdown_ev = threading.Event()
 
 
 def _append_log(msg: str):
     with _state_lock:
         _log_lines.append(msg)
+
+
+def _set_info(**kw):
+    """Record job facts the UI shows (seed, phase, ROM path…)."""
+    with _state_lock:
+        _job_info.update(kw)
+
+
+# Files whose presence marks a folder as a previous randomizer output.
+_OUTPUT_MARKERS = (".legacy_randomizer_output", "settings_used.json", "spoiler_log.txt")
+
+
+def _mark_output_dir(out: str):
+    """Drop a marker so future runs know this folder is safe to wipe."""
+    try:
+        with open(os.path.join(out, ".legacy_randomizer_output"), "w", encoding="utf-8") as f:
+            f.write("Created by Pokemon Legacy Randomizer. This folder is wiped on every run.\n")
+    except OSError:
+        pass
+
+
+def _is_cloud_synced_path(path: str) -> bool:
+    """True when the path lives on a cloud-synced mount (Dropbox, iCloud, Drive…).
+
+    Builds there are unreliable: the sync daemon re-stamps mtimes and can
+    corrupt large writes mid-build, so we mirror to local disk instead."""
+    p = os.path.realpath(path)
+    markers = ("/Library/CloudStorage/", "/Dropbox/", "/Mobile Documents/",
+               "/Google Drive/", "/OneDrive/", "/Box/")
+    return any(m in p + "/" for m in markers)
 
 
 def _save_rom_with_dialog(rom_path: str, default_name: str, ext: str, log) -> str:
@@ -504,8 +562,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # ---- routing ----
 
+    # Only the page we served may call the API. Any other website open in the
+    # same browser must not be able to start a job (which wipes a folder) or
+    # stop the server. Browsers send Origin / Sec-Fetch-Site on cross-site
+    # requests; a same-origin page never fails this check.
+    def _same_origin(self) -> bool:
+        host = (self.headers.get("Host") or "").strip()
+        origin = self.headers.get("Origin")
+        if origin:
+            if urlparse(origin).netloc != host:
+                return False
+        sfs = self.headers.get("Sec-Fetch-Site")
+        if sfs and sfs not in ("same-origin", "none"):
+            return False
+        return True
+
+    def _forbidden(self):
+        body = json.dumps({"ok": False, "error": "Cross-origin request refused"}).encode()
+        self.send_response(403)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", len(body))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
         path = urlparse(self.path).path
+        if path.startswith("/api/") and not self._same_origin():
+            self._forbidden()
+            return
         if path == "/" or path == "/index.html":
             self._serve_file(os.path.join(STATIC_DIR, "index.html"), "text/html")
         elif path == "/crystal":
@@ -522,6 +606,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._api_browse()
         elif path == "/api/items":
             self._api_items()
+        elif path == "/api/version":
+            self._send_json({"version": APP_VERSION, "platform": sys.platform})
         elif path == "/api/quit":
             self._send_json({"ok": True})
             threading.Thread(target=_shutdown_ev.set, daemon=True).start()
@@ -555,11 +641,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if not self._same_origin():
+            self._forbidden()
+            return
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length else b"{}"
         try:
             data = json.loads(body)
         except Exception:
+            data = {}
+        if not isinstance(data, dict):
             data = {}
 
         if path == "/api/randomize":
@@ -568,13 +659,59 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._api_randomize_yellow(data)
         elif path == "/api/randomize_emerald":
             self._api_randomize_emerald(data)
+        elif path == "/api/reveal":
+            self._api_reveal(data)
+        elif path == "/api/fetch_source":
+            self._api_fetch_source(data)
         else:
             self.send_error(404)
 
     def do_OPTIONS(self):
-        self.send_response(200)
-        self._cors()
+        self.send_response(204)
         self.end_headers()
+
+    def _api_fetch_source(self, data: dict):
+        """Download (git clone) a game's Legacy source into SOURCES_ROOT."""
+        global _job_running, _job_done, _job_error, _log_lines
+        game = str(data.get("game", "")).lower()
+        if game not in _SOURCE_REPOS:
+            self._send_json({"ok": False, "error": f"Unknown game {game!r}"})
+            return
+        with _state_lock:
+            if _job_running:
+                self._send_json({"ok": False, "error": "Already running"})
+                return
+            _job_running = True
+            _job_done    = False
+            _job_error   = None
+            _log_lines   = []
+            _job_info.clear()
+            _job_info.update({"game": game, "phase": "starting", "kind": "fetch"})
+        self._send_json({"ok": True})
+        threading.Thread(target=_run_fetch_source, args=(game,), daemon=True).start()
+
+    def _api_reveal(self, data: dict):
+        """Open the last job's ROM (selected in Finder) or output folder.
+
+        Only paths the server itself produced can be opened — the request
+        just says which one."""
+        what = data.get("what", "rom")
+        with _state_lock:
+            target = _job_info.get("rom_path" if what == "rom" else "out_dir")
+        if not target or not os.path.exists(target):
+            self._send_json({"ok": False, "error": "Nothing to show yet."})
+            return
+        try:
+            if sys.platform == "darwin":
+                cmd = ["/usr/bin/open", "-R", target] if os.path.isfile(target) else ["/usr/bin/open", target]
+            elif sys.platform.startswith("win"):
+                cmd = ["explorer", "/select,", target] if os.path.isfile(target) else ["explorer", target]
+            else:
+                cmd = ["xdg-open", os.path.dirname(target) if os.path.isfile(target) else target]
+            subprocess.Popen(cmd)
+            self._send_json({"ok": True})
+        except Exception as e:
+            self._send_json({"ok": False, "error": str(e)})
 
     # ---- API handlers ----
 
@@ -623,11 +760,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _api_status(self):
         with _state_lock:
-            self._send_json({
+            payload = {
                 "running": _job_running,
                 "done":    _job_done,
                 "error":   _job_error,
-            })
+                "version": APP_VERSION,
+                "platform": sys.platform,
+            }
+            payload.update(_job_info)
+        self._send_json(payload)
 
     def _api_randomize(self, data: dict):
         global _job_running, _job_done, _job_error, _log_lines
@@ -640,6 +781,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _job_done    = False
             _job_error   = None
             _log_lines   = []
+            _job_info.clear()
+            _job_info.update({"game": "crystal", "phase": "starting"})
 
         self._send_json({"ok": True})
         threading.Thread(target=_run_randomizer, args=(data,), daemon=True).start()
@@ -655,6 +798,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _job_done    = False
             _job_error   = None
             _log_lines   = []
+            _job_info.clear()
+            _job_info.update({"game": "yellow", "phase": "starting"})
 
         self._send_json({"ok": True})
         threading.Thread(target=_run_randomizer_yellow, args=(data,), daemon=True).start()
@@ -670,6 +815,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _job_done    = False
             _job_error   = None
             _log_lines   = []
+            _job_info.clear()
+            _job_info.update({"game": "emerald", "phase": "starting"})
 
         self._send_json({"ok": True})
         threading.Thread(target=_run_randomizer_emerald, args=(data,), daemon=True).start()
@@ -683,7 +830,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", len(content))
-            self._cors()
             self.end_headers()
             self.wfile.write(content)
         except FileNotFoundError:
@@ -694,13 +840,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", len(body))
-        self._cors()
         self.end_headers()
         self.wfile.write(body)
-
-    def _cors(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
 
 # ---------------------------------------------------------------------------
@@ -724,6 +865,105 @@ def _normalize_settings(data: dict) -> dict:
         elif b in data and a not in data:
             data[a] = data[b]
     return data
+
+
+# Where "Get source" clones the Legacy repos (outside cloud-synced folders).
+SOURCES_ROOT = os.path.join(os.path.expanduser("~"), "Pokemon Legacy Sources")
+_SOURCE_REPOS = {
+    "crystal": ("Pokemon_Crystal_Legacy", "https://github.com/cRz-Shadows/Pokemon_Crystal_Legacy.git"),
+    "yellow":  ("Pokemon_Yellow_Legacy",  "https://github.com/cRz-Shadows/Pokemon_Yellow_Legacy.git"),
+    "emerald": ("Pokemon_Emerald_Legacy", "https://github.com/cRz-Shadows/Pokemon_Emerald_Legacy.git"),
+}
+_ROM_EXTS = (".gb", ".gbc", ".gba", ".ips", ".bps", ".ups", ".sav", ".srm")
+
+
+def _run_fetch_source(game: str):
+    """Background job: make sure the Legacy source repo for `game` exists
+    under SOURCES_ROOT (git clone --depth=1), streaming progress to the log.
+    Records the folder in _job_info['source_dir'] so the UI can fill the
+    Source Directory field."""
+    global _job_running, _job_done, _job_error
+    import shutil as _shutil
+
+    def log(msg):
+        _append_log(msg)
+
+    try:
+        name, url = _SOURCE_REPOS[game]
+        title, markers = _SOURCE_FINGERPRINTS[game]
+        dest = os.path.join(SOURCES_ROOT, name)
+        _set_info(phase="fetching", kind="fetch", game=game)
+
+        if os.path.isdir(dest) and _has_markers(dest, markers):
+            log(f"{title} source is already downloaded:\n  {dest}")
+        else:
+            path = os.pathsep.join(["/usr/bin", "/usr/local/bin", "/opt/homebrew/bin",
+                                    os.environ.get("PATH", "")])
+            git = _shutil.which("git", path=path)
+            if not git:
+                raise RuntimeError(
+                    "git was not found. Install Xcode Command Line Tools "
+                    "(xcode-select --install) and try again, or clone the repo "
+                    f"yourself:  git clone {url}")
+            os.makedirs(SOURCES_ROOT, exist_ok=True)
+            if os.path.isdir(dest):
+                log("Removing an incomplete earlier download…")
+                _shutil.rmtree(dest, ignore_errors=True)
+            log(f"Downloading {title} source from GitHub")
+            log(f"  {url}")
+            log(f"  → {dest}")
+            log("  (one-time download; Emerald is a few hundred MB, so this can take a few minutes)\n")
+            proc = subprocess.Popen(
+                [git, "clone", "--depth=1", "--progress", url, dest],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                env=dict(os.environ, PATH=path, GIT_TERMINAL_PROMPT="0"),
+            )
+            # git redraws progress with \r; log each stage once (plus its final
+            # "done" line) instead of every percentage tick.
+            buf, last_stage = "", None
+            while True:
+                ch = proc.stdout.read(1)
+                if not ch:
+                    break
+                if ch in "\r\n":
+                    line = buf.strip()
+                    buf = ""
+                    if not line:
+                        continue
+                    stage = line.split(":")[0]
+                    if stage == last_stage and not line.endswith("done."):
+                        continue
+                    last_stage = stage
+                    log("  " + line)
+                else:
+                    buf += ch
+            proc.wait()
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    "git clone failed (see the log above). Check your internet "
+                    f"connection, or clone it yourself:  git clone {url}")
+            _validate_source(game, dest)
+            log(f"\nDownloaded {title} source.")
+
+        _set_info(phase="done", source_dir=dest,
+                  suggested_out=dest + "_randomized")
+        log(f"\nSource Directory set to:\n  {dest}")
+        with _state_lock:
+            _job_done = True
+
+    except Exception as exc:
+        import traceback
+        log(f"\n[ERROR] {exc}")
+        if not isinstance(exc, (ValueError, RuntimeError)):
+            log(traceback.format_exc())
+        with _state_lock:
+            _job_error = str(exc)
+            _job_done  = True
+            _job_info["phase"] = "error"
+
+    finally:
+        with _state_lock:
+            _job_running = False
 
 
 # Per-game source fingerprints: files/dirs each parser fundamentally needs.
@@ -759,6 +999,22 @@ def _validate_source(game: str, src: str):
                 f"(or switch to the {other_name} randomizer)."
             )
 
+    # A folder of ROMs / patches — the most common mix-up.
+    try:
+        entries = os.listdir(src)
+    except OSError:
+        entries = []
+    roms = [e for e in entries if e.lower().endswith(_ROM_EXTS)]
+    if roms and not os.path.exists(os.path.join(src, "Makefile")):
+        repo_url = _SOURCE_REPOS[game][1]
+        raise ValueError(
+            f"The Source Directory contains ROM files (e.g. {roms[0]}) but no source "
+            f"code:\n  {src}\n"
+            f"The randomizer doesn't patch ROMs — it patches the {name} SOURCE CODE and "
+            "compiles a new ROM. Click “Get source” next to the Source Directory field "
+            f"to download it, or run:  git clone {repo_url}"
+        )
+
     # Is the real repo one level down (user picked the parent folder)?
     try:
         for entry in sorted(os.listdir(src)):
@@ -772,9 +1028,36 @@ def _validate_source(game: str, src: str):
         pass
 
     raise ValueError(
-        f"The Source Directory doesn't look like {name} source "
-        f"(missing {markers[0]}). It should be the repo root — the folder "
-        f"that contains the Makefile."
+        f"The Source Directory doesn't look like {name} source (missing "
+        f"{markers[0]}):\n  {src}\n"
+        "It should be the cloned repo root — the folder that contains the Makefile. "
+        "Click “Get source” next to the Source Directory field to download it."
+    )
+
+
+def _check_output_dir_safe(out: str):
+    """Refuse to wipe a folder that isn't ours.
+
+    The output folder is deleted and re-created on every run. That is fine
+    for an empty folder or one this randomizer created earlier (it carries a
+    marker file), but a stray Documents/ or home folder must never be wiped."""
+    if not os.path.exists(out):
+        return
+    if not os.path.isdir(out):
+        raise ValueError(f"The Output path exists but is not a folder:\n  {out}")
+    try:
+        entries = [e for e in os.listdir(out) if e not in (".DS_Store", "Thumbs.db", "desktop.ini")]
+    except OSError as exc:
+        raise ValueError(f"Cannot read the Output Directory: {exc}")
+    if not entries:
+        return
+    if any(m in entries for m in _OUTPUT_MARKERS):
+        return
+    raise ValueError(
+        "The Output Directory is not empty and doesn't look like a folder this "
+        "randomizer created — everything inside it would be deleted:\n"
+        f"  {out}\n"
+        "Choose a new or empty folder (or a previous randomizer output folder)."
     )
 
 
@@ -784,21 +1067,42 @@ def _prep_job(data: dict):
     Returns (src, out, seed). Raises ValueError on bad input."""
     import random as _random
 
-    src = data.get("sourceDir", "").strip()
-    out = data.get("outputDir", "").strip()
+    src = os.path.expanduser(str(data.get("sourceDir", "") or "").strip())
+    out = os.path.expanduser(str(data.get("outputDir", "") or "").strip())
     seed_raw = data.get("seed", "")
 
     if not src or not os.path.isdir(src):
         raise ValueError(f"Source directory not found: {src!r}")
     if not out:
         raise ValueError("Output directory is required.")
-    if src == out:
-        raise ValueError("Source and Output directories must be different.")
 
-    try:
-        seed = int(seed_raw)
-    except (ValueError, TypeError):
+    src_real = os.path.realpath(src)
+    out_real = os.path.realpath(out)
+    if src_real == out_real:
+        raise ValueError("Source and Output directories must be different.")
+    if out_real.startswith(src_real + os.sep):
+        raise ValueError(
+            "The Output Directory must not be inside the Source Directory "
+            "(the source tree is copied into the output folder)."
+        )
+    if src_real.startswith(out_real + os.sep):
+        raise ValueError(
+            "The Source Directory must not be inside the Output Directory "
+            "(the output folder is wiped on every run — your source would be deleted)."
+        )
+    _check_output_dir_safe(out)
+
+    if seed_raw is None or str(seed_raw).strip() == "":
         seed = _random.randint(0, 999999)
+    else:
+        try:
+            seed = int(str(seed_raw).strip())
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"Seed must be a whole number (got {str(seed_raw).strip()!r}). "
+                "Leave it blank or click 🎲 for a random seed."
+            )
+    _set_info(seed=seed, out_dir=out)
     return src, out, seed
 
 
@@ -817,24 +1121,36 @@ def _save_settings_used(data: dict, seed: int, out: str, log):
 
 
 def _run_make_build(out: str, log, kind: str, rgbds_version=None,
-                    make_args=None, local_mirror_name=None, rom_name=None):
+                    make_args=None, local_mirror_name=None, rom_name=None,
+                    rom_ext=None):
     """Run 'make' in the output tree with the right toolchain on PATH.
 
     kind: "gb"         — RGBDS (needs rgbds_version)
           "gba"        — devkitARM + agbcc (Emerald-style MODERN=0)
           "gba_modern" — arm-none-eabi-gcc from PATH ('make modern')
 
-    local_mirror_name: when set, the output tree is mirrored to
-    /private/tmp/<name> and built THERE, then rom_name is copied back.
-    Needed because builds on cloud-synced mounts (Dropbox/CloudStorage)
-    corrupt large writes and re-stamp mtimes.
+    local_mirror_name: when set, the output tree is mirrored to a local
+    temp dir and built THERE, then the ROM (rom_name, or every *rom_ext
+    file) is copied back. This happens automatically when the output
+    folder lives on a cloud-synced mount (Dropbox/iCloud/Drive): builds
+    there corrupt large writes and re-stamp mtimes.
+
+    make runs in parallel first (-jN); if that fails the build is retried
+    serially once, since a few Makefiles have latent -j race conditions.
 
     Streams build output to the log; raises RuntimeError on failure."""
     import shutil as _shutil
 
+    _set_info(phase="building")
     log("\n" + "=" * 56)
     log("Building ROM with 'make'...")
     log("=" * 56)
+
+    if local_mirror_name is None and _is_cloud_synced_path(out):
+        local_mirror_name = "plr_build_" + hashlib.md5(
+            os.path.realpath(out).encode("utf-8")).hexdigest()[:10]
+        log("Output folder is on a cloud-synced drive — building in a local "
+            "temp folder and copying the ROM back (sync daemons corrupt builds).")
 
     env = os.environ.copy()
     base_paths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]
@@ -877,39 +1193,61 @@ def _run_make_build(out: str, log, kind: str, rgbds_version=None,
     # Cloud-mount workaround: mirror to local disk and build there
     build_dir = out
     if local_mirror_name:
-        build_dir = os.path.join("/private/tmp", local_mirror_name)
+        import tempfile as _tempfile
+        build_dir = os.path.join(_tempfile.gettempdir(), local_mirror_name)
         log(f"Mirroring source to local build dir (cloud-sync-safe): {build_dir}")
-        r = subprocess.run(
-            ["rsync", "-a", "--delete", "--exclude", ".git",
-             out.rstrip("/") + "/", build_dir + "/"],
-            capture_output=True, text=True)
-        if r.returncode != 0:
-            raise RuntimeError(f"rsync to local build dir failed: {r.stderr[:300]}")
+        rsync = _shutil.which("rsync", path=env["PATH"])
+        if rsync:
+            r = subprocess.run(
+                [rsync, "-a", "--delete", "--exclude", ".git",
+                 out.rstrip("/") + "/", build_dir + "/"],
+                capture_output=True, text=True)
+            if r.returncode != 0:
+                raise RuntimeError(f"rsync to local build dir failed: {r.stderr[:300]}")
+        else:
+            if os.path.isdir(build_dir):
+                _shutil.rmtree(build_dir, ignore_errors=True)
+            _shutil.copytree(out, build_dir, ignore=_shutil.ignore_patterns(".git"))
 
-    proc = subprocess.Popen(
-        [make_exe] + (make_args or []),
-        cwd=build_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        env=env,
-    )
-    captured = []
-    for line in proc.stdout:
-        line = line.rstrip()
-        captured.append(line)
-        log(line)
-    proc.wait()
+    def _run_make(extra):
+        proc = subprocess.Popen(
+            [make_exe] + list(extra) + (make_args or []),
+            cwd=build_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env=env,
+        )
+        captured = []
+        for line in proc.stdout:
+            line = line.rstrip()
+            captured.append(line)
+            log(line)
+        proc.wait()
+        return proc.returncode, captured
 
-    if proc.returncode != 0:
-        raise RuntimeError(_summarize_build_failure(captured, proc.returncode))
+    jobs = max(1, min(8, (os.cpu_count() or 2)))
+    log(f"Running: make -j{jobs}")
+    code, captured = _run_make([f"-j{jobs}"])
+    if code != 0 and jobs > 1:
+        log("\nParallel build failed — retrying serially (make -j1) in case "
+            "the Makefile has a parallel-build race...")
+        code, captured = _run_make(["-j1"])
 
-    # Mirror build: bring the ROM back to the user's output directory
-    if local_mirror_name and rom_name:
-        built = os.path.join(build_dir, rom_name)
-        if os.path.isfile(built):
-            _shutil.copy2(built, os.path.join(out, rom_name))
-            log(f"Copied {rom_name} back to the output directory")
+    if code != 0:
+        raise RuntimeError(_summarize_build_failure(captured, code))
+
+    # Mirror build: bring the ROM(s) back to the user's output directory
+    if local_mirror_name:
+        copied = 0
+        names = [rom_name] if rom_name and os.path.isfile(os.path.join(build_dir, rom_name)) else []
+        if rom_ext:
+            names += [f for f in os.listdir(build_dir)
+                      if f.lower().endswith(rom_ext) and f not in names]
+        for name in names:
+            _shutil.copy2(os.path.join(build_dir, name), os.path.join(out, name))
+            copied += 1
+        log(f"Copied {copied} ROM file(s) back to the output directory")
 
 
 # Patterns that mark a real compiler/assembler error line in a make log.
@@ -950,7 +1288,7 @@ def _find_rom(out: str, canonical: str, ext: str, log) -> str:
         if f.endswith(ext)
     ]
     if rom_files:
-        rom_path = sorted(rom_files)[-1]  # pick most recent if multiple
+        rom_path = max(rom_files, key=os.path.getmtime)  # newest build wins
         log(f"  (ROM found as: {os.path.basename(rom_path)})")
         return rom_path
     raise RuntimeError(
@@ -969,6 +1307,7 @@ def _warn_new_game_required(log):
 
 def _log_finish(build_rom: bool, rom_path, out: str, canonical: str, log):
     """Final success footer for a randomizer run."""
+    _set_info(phase="done", rom_path=rom_path, out_dir=out, built=bool(build_rom and rom_path))
     log("\n" + "=" * 56)
     if build_rom and rom_path:
         log("Done! ROM built successfully:")
@@ -1008,6 +1347,7 @@ def _run_randomizer(data: dict):
         from writer import SourceWriter
 
         # Parse
+        _set_info(phase="parsing")
         log("\nParsing source files...")
         parser = CrystalLegacyParser(src, log_fn=log)
         starters_found = parser.parse_all()
@@ -1084,15 +1424,20 @@ def _run_randomizer(data: dict):
         s.zero_grinding        = data.get("zeroGrinding", False)
         s.elite4_prep          = data.get("elite4Prep", False)
 
-        # Starting items — list of {const, qty} dicts; empty list = unchanged
-        starting_bag_items = data.get("startingBagItems", [])
-        starting_pc_items  = data.get("startingPCItems",  [])
+        # Starting items — list of {const, qty} dicts; empty list = unchanged.
+        # Older settings files have no enable flag, so a missing flag means on.
+        if data.get("startingItemsEnable", True):
+            starting_bag_items = data.get("startingBagItems", []) or []
+            starting_pc_items  = data.get("startingPCItems",  []) or []
+        else:
+            starting_bag_items, starting_pc_items = [], []
 
         # PC Pokémon — list of mon dicts; empty list = unchanged
         pc_pokemon = data.get("pcPokemon", []) if data.get("pcPokemonEnable", False) else []
 
         engine = RandomizerEngine(s, log_fn=log)
 
+        _set_info(phase="randomizing")
         log("\n--- Randomizing ---")
         rand_starters         = parser.starters
         rand_starter_items    = parser.starter_items
@@ -1140,14 +1485,20 @@ def _run_randomizer(data: dict):
 
         if s.trainer_mode != "unchanged":
             log("Trainers:")
-            # Always pass the level evo map — needed for rival starter AND force-evolved
+            # Always pass the evolution maps — needed for rival starter AND force-evolved
             s.rival_level_evo_map = parser.level_evo_map
+            s.full_evo_map        = parser.full_evo_map
             if s.trainer_rival_starter:
+                from constants import POKEMON_CONSTANTS as _PC, STARTER_CONSTANTS as _SC
+                # rival_starter_ids follows STARTER_CONSTANTS order (the slot each
+                # randomized starter occupies), so unchanged starters must use
+                # that same order — not dex order.
                 if starters_found and s.starter_mode != "unchanged":
-                    from constants import POKEMON_CONSTANTS as _PC
                     s.rival_starter_ids = [_PC.get(sl.species_const, 0) for sl in rand_starters]
+                elif starters_found:
+                    s.rival_starter_ids = [_PC.get(sl.species_const, 0) for sl in parser.starters]
                 else:
-                    s.rival_starter_ids = [152, 155, 158]  # Chikorita, Cyndaquil, Totodile
+                    s.rival_starter_ids = [_PC[c] for c in _SC]
             rand_trainers = engine.randomize_trainers(parser.trainers)
 
         if s.trade_mode != "unchanged":
@@ -1175,12 +1526,17 @@ def _run_randomizer(data: dict):
             log("Field Items:")
             if parser.field_items:
                 rand_field_items = engine.randomize_field_items(parser.field_items)
+                from key_items import check_field_items
+                check_field_items("crystal", src, parser.field_items, rand_field_items,
+                                  lambda e: e.item_const)
             else:
                 log("  [WARN] No field items found in source — skipping.")
 
         log("\n--- Writing output ---")
+        _set_info(phase="writing")
         writer = SourceWriter(src, out, log_fn=log)
         writer.prepare_output_directory()
+        _mark_output_dir(out)
 
         if (s.easier_evolutions or s.remove_time_evolutions) and rand_evolutions:
             log("Writing evolution changes...")
@@ -1284,7 +1640,8 @@ def _run_randomizer(data: dict):
         rom_path = None
 
         if build_rom:
-            _run_make_build(out, log, "gb", _RGBDS_CRYSTAL)
+            _run_make_build(out, log, "gb", _RGBDS_CRYSTAL,
+                            rom_name="pokecrystal.gbc", rom_ext=".gbc")
             if starting_bag_items or starting_pc_items or pc_pokemon:
                 _warn_new_game_required(log)
             rom_path = _find_rom(out, "pokecrystal.gbc", ".gbc", log)
@@ -1300,11 +1657,13 @@ def _run_randomizer(data: dict):
     except Exception as exc:
         import traceback
         log(f"\n[ERROR] {exc}")
-        log(traceback.format_exc())
+        if not isinstance(exc, ValueError):      # ValueError = user-input problem, no traceback noise
+            log(traceback.format_exc())
         with _state_lock:
             global _job_error
             _job_error = str(exc)
             _job_done  = True
+            _job_info["phase"] = "error"
 
     finally:
         with _state_lock:
@@ -1340,6 +1699,7 @@ def _run_randomizer_yellow(data: dict):
             raise RuntimeError("Yellow Legacy randomizer modules are not available in this build.")
 
         # ── Parse ──────────────────────────────────────────────────────────────
+        _set_info(phase="parsing")
         log("\nParsing source files...")
         parser = YellowLegacyParser(src, log_fn=log)
         starters_found = parser.parse_all()
@@ -1371,6 +1731,8 @@ def _run_randomizer_yellow(data: dict):
         s.trainer_mode             = data.get("trainerMode", "random")
         s.trainer_no_legendaries   = data.get("trainerNoLegend", False)
         s.trainer_boss_no_legendaries = data.get("trainerBossNoLegend", True)
+        s.trainer_similar_strength = data.get("trainerSimilarStrength", False)
+        s.trainer_weight_types     = data.get("trainerWeightTypes", False)
         s.trainer_force_fully_evolved = data.get("trainerForceEvolved", False)
         s.trainer_force_evo_level  = int(data.get("trainerForceEvoLevel", 30))
 
@@ -1398,6 +1760,7 @@ def _run_randomizer_yellow(data: dict):
         engine = YellowRandomizerEngine(s, log_fn=log)
 
         # ── Randomize ──────────────────────────────────────────────────────────
+        _set_info(phase="randomizing")
         log("\n--- Randomizing ---")
 
         # Carry-through copies (used verbatim if the feature is "unchanged")
@@ -1429,8 +1792,8 @@ def _run_randomizer_yellow(data: dict):
 
         if s.trainer_mode != "unchanged":
             log("Trainers:")
-            if s.trainer_force_fully_evolved and parser.evolutions:
-                engine._level_evo_map = engine.build_level_evo_map(parser.evolutions)
+            if parser.evolutions:
+                engine.set_evolutions(parser.evolutions)
             rand_trainers = engine.randomize_trainers(parser.trainers)
 
         if s.static_mode != "unchanged":
@@ -1453,6 +1816,9 @@ def _run_randomizer_yellow(data: dict):
             log("Field Items:")
             if parser.field_items:
                 rand_field_items = engine.randomize_field_items(parser.field_items)
+                from key_items import check_field_items
+                check_field_items("yellow", src, parser.field_items, rand_field_items,
+                                  lambda e: e.item_const)
             else:
                 log("  [WARN] No field items found in source — skipping.")
 
@@ -1472,8 +1838,10 @@ def _run_randomizer_yellow(data: dict):
 
         # ── Write output ───────────────────────────────────────────────────────
         log("\n--- Writing output ---")
+        _set_info(phase="writing")
         writer = YellowSourceWriter(src, out, log_fn=log)
         writer.prepare_output_directory()
+        _mark_output_dir(out)
 
         if s.starter_mode != "unchanged" and new_starter_const:
             log("Writing Oak starter...")
@@ -1551,7 +1919,10 @@ def _run_randomizer_yellow(data: dict):
         rom_path  = None
 
         if build_rom:
-            _run_make_build(out, log, "gb", _RGBDS_YELLOW)
+            _run_make_build(out, log, "gb", _RGBDS_YELLOW,
+                            rom_name="pokeyellow.gbc", rom_ext=".gbc")
+            if (s.randomize_start_items and (s.start_items or s.start_pc_items)) or pc_pokemon:
+                _warn_new_game_required(log)
             rom_path = _find_rom(out, "pokeyellow.gbc", ".gbc", log)
             rom_path = _save_rom_with_dialog(
                 rom_path, f"YellowLegacy_Randomized_{seed}.gbc", ".gbc", log)
@@ -1565,11 +1936,13 @@ def _run_randomizer_yellow(data: dict):
     except Exception as exc:
         import traceback
         log(f"\n[ERROR] {exc}")
-        log(traceback.format_exc())
+        if not isinstance(exc, ValueError):      # ValueError = user-input problem, no traceback noise
+            log(traceback.format_exc())
         with _state_lock:
             global _job_error
             _job_error = str(exc)
             _job_done  = True
+            _job_info["phase"] = "error"
 
     finally:
         with _state_lock:
@@ -1626,6 +1999,7 @@ def _run_randomizer_gba(data: dict, game: str):
             raise RuntimeError(f"{cfg['title']} randomizer modules are not available in this build.")
 
         # ── Parse ──────────────────────────────────────────────────────────────
+        _set_info(phase="parsing")
         log("\nParsing source files...")
         parser = ParserCls(src, log_fn=log)
         starters_found = parser.parse_all()
@@ -1712,8 +2086,11 @@ def _run_randomizer_gba(data: dict, game: str):
             species_numbers=parser.species_numbers,
             log_fn=log,
         )
+        if hasattr(engine, "set_evolution_graph"):
+            engine.set_evolution_graph(getattr(parser, "evolution_graph", {}))
 
         # ── Randomize ──────────────────────────────────────────────────────────
+        _set_info(phase="randomizing")
         log("\n--- Randomizing ---")
 
         rand_wild_json        = parser.wild_json
@@ -1782,6 +2159,9 @@ def _run_randomizer_gba(data: dict, game: str):
             log("Field Items:")
             if parser.field_items:
                 rand_field_items = engine.randomize_field_items(parser.field_items)
+                from key_items import check_field_items
+                check_field_items(game, src, parser.field_items, rand_field_items,
+                                  lambda e: e.item_const)
             else:
                 log("  [WARN] No field items found in source — skipping.")
 
@@ -1794,8 +2174,10 @@ def _run_randomizer_gba(data: dict, game: str):
 
         # ── Write output ───────────────────────────────────────────────────────
         log("\n--- Writing output ---")
+        _set_info(phase="writing")
         writer = WriterCls(src, out, log_fn=log)
         writer.prepare_output_directory()
+        _mark_output_dir(out)
 
         if s.wild_mode != "unchanged":
             log("Writing wild encounters...")
@@ -1883,7 +2265,11 @@ def _run_randomizer_gba(data: dict, game: str):
 
         if build_rom:
             _run_make_build(out, log, cfg["build_kind"], make_args=cfg["make_args"],
-                            local_mirror_name=cfg["mirror"], rom_name=cfg["rom"])
+                            local_mirror_name=cfg["mirror"], rom_name=cfg["rom"],
+                            rom_ext=".gba")
+            if (s.randomize_start_items and (s.start_items or s.start_pc_items)) or \
+                    (s.pc_pokemon_enable and s.pc_pokemon):
+                _warn_new_game_required(log)
             rom_path = _find_rom(out, cfg["rom"], ".gba", log)
             rom_path = _save_rom_with_dialog(
                 rom_path, f"{cfg['stem']}_Randomized_{seed}.gba", ".gba", log)
@@ -1897,11 +2283,13 @@ def _run_randomizer_gba(data: dict, game: str):
     except Exception as exc:
         import traceback
         log(f"\n[ERROR] {exc}")
-        log(traceback.format_exc())
+        if not isinstance(exc, ValueError):      # ValueError = user-input problem, no traceback noise
+            log(traceback.format_exc())
         with _state_lock:
             global _job_error
             _job_error = str(exc)
             _job_done  = True
+            _job_info["phase"] = "error"
 
     finally:
         with _state_lock:
@@ -1925,14 +2313,26 @@ def find_free_port() -> int:
 
 
 def main():
-    port = find_free_port()
+    # Optional CLI flags:  --port N   (fixed port instead of a free one)
+    #                      --no-browser (don't open the browser automatically)
+    args = sys.argv[1:]
+    port = None
+    open_in_browser = "--no-browser" not in args
+    if "--port" in args:
+        try:
+            port = int(args[args.index("--port") + 1])
+        except (IndexError, ValueError):
+            print("Usage: python3 main.py [--port N] [--no-browser]")
+            sys.exit(2)
+    if port is None:
+        port = int(os.environ.get("PLR_PORT") or 0) or find_free_port()
     server = http.server.HTTPServer(("127.0.0.1", port), Handler)
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
     url = f"http://127.0.0.1:{port}"
-    print(f"Pokemon Legacy Randomizer running at {url}", flush=True)
+    print(f"Pokemon Legacy Randomizer v{APP_VERSION} running at {url}", flush=True)
 
     # Small delay then open browser.
     # Use macOS 'open' directly — more reliable than webbrowser when launched
@@ -1940,16 +2340,23 @@ def main():
     def open_browser():
         import time; time.sleep(0.6)
         try:
-            subprocess.Popen(["/usr/bin/open", url])
+            if sys.platform == "darwin":
+                subprocess.Popen(["/usr/bin/open", url])
+            else:
+                webbrowser.open(url)
         except Exception:
             try:
                 webbrowser.open(url)
             except Exception:
                 pass
-    threading.Thread(target=open_browser, daemon=True).start()
+    if open_in_browser:
+        threading.Thread(target=open_browser, daemon=True).start()
 
-    # Block until the /api/quit endpoint fires the event
-    _shutdown_ev.wait()
+    # Block until the /api/quit endpoint fires the event (or Ctrl-C)
+    try:
+        _shutdown_ev.wait()
+    except KeyboardInterrupt:
+        pass
     server.shutdown()
     print("Server stopped.")
 

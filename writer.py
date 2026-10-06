@@ -381,6 +381,16 @@ class SourceWriter:
         for orig, rand in zip(original, randomized):
             lines = self._load_file(orig.source_file)
 
+            # Crystal Legacy single-line macro: rebuild every field at once.
+            if getattr(orig, "is_npctrade", False):
+                if 0 <= orig.given_line < len(lines):
+                    new_ln, n = self._rewrite_npctrade_line(lines[orig.given_line], orig, rand)
+                    if n:
+                        lines[orig.given_line] = new_ln
+                        files_written.add(orig.source_file)
+                        changes += n
+                continue
+
             def patch(line_idx, do_it, apply_fn):
                 """Apply apply_fn to lines[line_idx] if do_it and index valid."""
                 if do_it and 0 <= line_idx < len(lines):
@@ -468,6 +478,70 @@ class SourceWriter:
             f"  In-game trades: {changes} species change(s) across "
             f"{len(files_written)} file(s)."
         )
+
+    # npctrade DIALOGSET, GIVEMON, GETMON, "NICK@", DV1, DV2, ITEM, OTID, "OT@", GENDER
+    # Every separator is captured so the rebuilt line keeps its alignment.
+    _NPCTRADE_REWRITE_RE = re.compile(
+        r'^(\s*npctrade\s+\w+\s*,\s*)'      # 1  prefix incl. dialogset
+        r'([A-Z][A-Z0-9_]+)'                  # 2  GIVEMON (requested)
+        r'(\s*,\s*)'                          # 3
+        r'([A-Z][A-Z0-9_]+)'                  # 4  GETMON (given)
+        r'(\s*,\s*)'                          # 5
+        r'"([^"]*)"'                          # 6  nickname
+        r'(\s*,\s*)'                          # 7
+        r'(\$?[0-9A-Fa-f]+)'                  # 8  DV byte 1
+        r'(\s*,\s*)'                          # 9
+        r'(\$?[0-9A-Fa-f]+)'                  # 10 DV byte 2
+        r'(\s*,\s*)'                          # 11
+        r'([A-Z_][A-Z0-9_]*)'                 # 12 item
+        r'(\s*,\s*\d+\s*,\s*)'               # 13 OT id + separators
+        r'"([^"]*)"'                          # 14 OT name
+        r'(\s*,\s*)'                          # 15
+        r'(\w+)'                              # 16 gender
+        r'(.*)$',                             # 17 trailing comment / newline
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    def _rewrite_npctrade_line(self, line: str, orig, rand):
+        """Rebuild a Crystal Legacy ``npctrade`` line with the randomized
+        fields. Returns (new_line, number_of_fields_changed)."""
+        m = self._NPCTRADE_REWRITE_RE.match(line)
+        if not m:
+            self.log("  [WARN] npctrade line no longer matches the expected format — skipped")
+            return line, 0
+        g = list(m.groups())
+        changed = 0
+
+        def _pad(name: str, width: int) -> str:
+            name = (name or "")[:width - 1].upper()
+            return name + "@" * (width - len(name))
+
+        if rand.requested_species != orig.requested_species:
+            g[1] = rand.requested_species; changed += 1
+        if rand.given_species != orig.given_species:
+            g[3] = rand.given_species; changed += 1
+        if rand.nickname and rand.nickname != orig.nickname:
+            g[5] = _pad(rand.nickname, len(g[5]) or 11); changed += 1
+        if rand.dvs_raw and rand.dvs_raw != orig.dvs_raw:
+            try:
+                word = int(str(rand.dvs_raw).lstrip('$'), 16) & 0xFFFF
+                g[7]  = f"${word >> 8:02x}"
+                g[9]  = f"${word & 0xFF:02x}"
+                changed += 1
+            except ValueError:
+                pass
+        if rand.item and rand.item != orig.item:
+            g[11] = rand.item; changed += 1
+        if rand.ot_name and rand.ot_name != orig.ot_name:
+            g[13] = _pad(rand.ot_name, len(g[13]) or 11); changed += 1
+        # A new species may not exist in the requested gender — relax it.
+        if (g[1] != orig.requested_species) and g[15].upper() in ("TRADE_GENDER_MALE", "TRADE_GENDER_FEMALE"):
+            g[15] = "TRADE_GENDER_EITHER"
+        # Groups 6 and 14 captured the string contents only — put the quotes
+        # back (without them the macro emits a symbol, not an 11-byte string).
+        g[5]  = '"' + g[5]  + '"'
+        g[13] = '"' + g[13] + '"'
+        return "".join(g), changed
 
     # -------------------------------------------------------------------------
     # Static Pokemon
@@ -1067,14 +1141,15 @@ class SourceWriter:
     # PC Pokémon SRAM injection
     # -------------------------------------------------------------------------
 
-    # Crystal GBC text encoding table
+    # Crystal GBC text encoding table (pokecrystal charmap.asm)
     _CRYSTAL_CHARMAP = dict(
         **{chr(0x41 + i): 0x80 + i for i in range(26)},   # A-Z → $80-$99
         **{chr(0x61 + i): 0xA0 + i for i in range(26)},   # a-z → $A0-$B9
         **{chr(0x30 + i): 0xF6 + i for i in range(10)},   # 0-9 → $F6-$FF
-        **{' ': 0x7F, '.': 0xE8, ',': 0xF0, "'": 0xE2,
-           '-': 0xE3, '!': 0xE9, '?': 0xEA,
-           '♂': 0xEF, '♀': 0xF5},                # ♂ ♀
+        **{' ': 0x7F,
+           "'": 0xE0, '-': 0xE3, '?': 0xE6, '!': 0xE7, '.': 0xE8,
+           '&': 0xE9, 'é': 0xEA, '♂': 0xEF, '/': 0xF3, ',': 0xF4,
+           '♀': 0xF5},
     )
     _CRYSTAL_TERM = 0x50  # string terminator
     _CRYSTAL_FILL = 0xFF  # padding after terminator
@@ -1104,6 +1179,45 @@ class SourceWriter:
             return self._SPECIES_NAME_OVERRIDES[species_const]
         return species_const.replace('_', ' ').strip()[:10]
 
+    # Gen 2 experience curves: exp needed to reach level n
+    @staticmethod
+    def _exp_for_level(growth: str, n: int) -> int:
+        n3, n2 = n ** 3, n ** 2
+        if growth == "GROWTH_MEDIUM_SLOW":
+            exp = 1.2 * n3 - 15 * n2 + 100 * n - 140
+        elif growth == "GROWTH_FAST":
+            exp = 0.8 * n3
+        elif growth == "GROWTH_SLOW":
+            exp = 1.25 * n3
+        elif growth == "GROWTH_SLIGHTLY_FAST":
+            exp = 0.75 * n3 + 10 * n2 - 30
+        elif growth == "GROWTH_SLIGHTLY_SLOW":
+            exp = 0.75 * n3 + 20 * n2 - 70
+        else:  # GROWTH_MEDIUM_FAST (default)
+            exp = n3
+        return max(0, min(0xFFFFFF, int(exp)))
+
+    def _load_growth_rates(self) -> dict:
+        """Parse each base_stats/<species>.asm for its GROWTH_* constant."""
+        rates = {}
+        for cand in ("data/pokemon/base_stats", "data/base_stats"):
+            d = os.path.join(self.source_dir, cand)
+            if not os.path.isdir(d):
+                continue
+            pat = re.compile(r'\b(GROWTH_[A-Z_]+)\b')
+            for fname in os.listdir(d):
+                if not fname.endswith('.asm'):
+                    continue
+                try:
+                    with open(os.path.join(d, fname), 'r', encoding='utf-8', errors='replace') as fh:
+                        m = pat.search(fh.read())
+                except OSError:
+                    continue
+                if m:
+                    rates[fname[:-4].upper()] = m.group(1)
+            break
+        return rates
+
     def _load_move_pp_table(self) -> dict:
         """Parse data/moves/moves.asm and return {MOVE_CONST: pp_value} dict."""
         moves_path = os.path.join(self.source_dir, "data", "moves", "moves.asm")
@@ -1121,8 +1235,18 @@ class SourceWriter:
                 pp[m.group(1)] = int(m.group(2))
         return pp
 
+    @staticmethod
+    def _clamp_int(value, lo: int, hi: int, default: int) -> int:
+        """int() with clamping; None/'' → default (0 is a valid value)."""
+        if value is None or value == "":
+            return default
+        try:
+            return max(lo, min(hi, int(value)))
+        except (TypeError, ValueError):
+            return default
+
     def _gen_mon_writes(self, box_prefix: str, mon_num: int, mon: dict,
-                        pp_table: dict) -> list:
+                        pp_table: dict, growth_rates: dict = None) -> list:
         """
         Return a list of ASM instruction strings for one box Pokémon.
 
@@ -1135,17 +1259,19 @@ class SourceWriter:
         moves    = list(mon.get('moves') or [])
         while len(moves) < 4:
             moves.append('NO_MOVE')
-        level   = max(1, min(100, int(mon.get('level') or 5)))
-        dv_atk  = max(0, min(15, int(mon.get('dvAtk') or 15)))
-        dv_def  = max(0, min(15, int(mon.get('dvDef') or 15)))
-        dv_spd  = max(0, min(15, int(mon.get('dvSpd') or 15)))
-        dv_spc  = max(0, min(15, int(mon.get('dvSpc') or 15)))
+        level   = self._clamp_int(mon.get('level'), 1, 100, 5)
+        dv_atk  = self._clamp_int(mon.get('dvAtk'), 0, 15, 15)
+        dv_def  = self._clamp_int(mon.get('dvDef'), 0, 15, 15)
+        dv_spd  = self._clamp_int(mon.get('dvSpd'), 0, 15, 15)
+        dv_spc  = self._clamp_int(mon.get('dvSpc'), 0, 15, 15)
         nickname = (mon.get('nickname') or '').strip()
         if not nickname:
             nickname = self._species_default_name(species)
 
-        # Experience: level³ (Medium Fast approximation)
-        exp      = level ** 3
+        # Experience matching the species' real growth curve, so the mon
+        # doesn't jump or stall levels after its first battle.
+        growth   = (growth_rates or {}).get(species, "GROWTH_MEDIUM_FAST")
+        exp      = self._exp_for_level(growth, level)
         exp_b2   = (exp >> 16) & 0xFF
         exp_b1   = (exp >>  8) & 0xFF
         exp_b0   =  exp        & 0xFF
@@ -1263,7 +1389,7 @@ class SourceWriter:
         return lines
 
     def _gen_box_writes(self, box_prefix: str, box_n: int, mons: list,
-                        pp_table: dict) -> list:
+                        pp_table: dict, growth_rates: dict = None) -> list:
         """
         Return ASM lines that initialise one PC box.
 
@@ -1287,7 +1413,7 @@ class SourceWriter:
         lines.append(f'\tld [{box_prefix}Species + {n}], a')
         # Per-mon struct, OT, nickname
         for idx, mon in enumerate(mons):
-            lines.extend(self._gen_mon_writes(box_prefix, idx + 1, mon, pp_table))
+            lines.extend(self._gen_mon_writes(box_prefix, idx + 1, mon, pp_table, growth_rates))
         return lines
 
     def write_pc_pokemon(self, pc_mons: list, intro_menu_src_path: str):
@@ -1324,6 +1450,7 @@ class SourceWriter:
             return
 
         pp_table = self._load_move_pp_table()
+        growth_rates = self._load_growth_rates()
 
         out_path = self._get_output_path(intro_menu_src_path)
         with open(out_path, 'r', encoding='utf-8', errors='replace') as fh:
@@ -1367,7 +1494,7 @@ class SourceWriter:
             asm.append('\tcall OpenSRAM')
             for box_n in sorted(bank2):
                 asm.extend(self._gen_box_writes(f'sBox{box_n}', box_n,
-                                                bank2[box_n], pp_table))
+                                                bank2[box_n], pp_table, growth_rates))
             asm.append('\tcall CloseSRAM')
 
         if bank3:
@@ -1375,7 +1502,7 @@ class SourceWriter:
             asm.append('\tcall OpenSRAM')
             for box_n in sorted(bank3):
                 asm.extend(self._gen_box_writes(f'sBox{box_n}', box_n,
-                                                bank3[box_n], pp_table))
+                                                bank3[box_n], pp_table, growth_rates))
             asm.append('\tcall CloseSRAM')
 
         # --- Active box (sBox) patch ---
@@ -1387,7 +1514,7 @@ class SourceWriter:
             asm.append('\t; Also populate sBox (active box) so box 1 is visible immediately')
             asm.append('\tld a, BANK(sBox)')
             asm.append('\tcall OpenSRAM')
-            asm.extend(self._gen_box_writes('sBox', 1, box_mons[1], pp_table))
+            asm.extend(self._gen_box_writes('sBox', 1, box_mons[1], pp_table, growth_rates))
             asm.append('\tcall CloseSRAM')
 
         asm.append('\tret')

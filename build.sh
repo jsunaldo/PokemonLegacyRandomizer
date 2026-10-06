@@ -33,6 +33,7 @@ PYINSTALLER="${HOME}/Library/Python/3.9/bin/pyinstaller"
   --hidden-import writer_emerald \
   --hidden-import writer_yellow \
   --hidden-import spoiler_log \
+  --hidden-import key_items \
   --noconfirm \
   launcher_gui.py
 

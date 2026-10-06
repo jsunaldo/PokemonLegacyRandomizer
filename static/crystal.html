@@ -465,21 +465,21 @@
           starters, wild encounters, and trainer parties all draw from the same filtered pool.
         </p>
         <label class="option">
-          <input type="radio" name="genFilter" id="genAll" checked>
+          <input type="radio" name="genFilter" id="genAll" value="all" checked>
           <div class="option-group">
             <div class="opt-label">All Pokémon &mdash; Gen 1 + Gen 2</div>
             <div class="opt-desc">Full roster of 251 Pokémon available</div>
           </div>
         </label>
         <label class="option">
-          <input type="radio" name="genFilter" id="gen1Only">
+          <input type="radio" name="genFilter" id="gen1Only" value="gen1">
           <div class="option-group">
             <div class="opt-label">Gen 1 only &mdash; Bulbasaur through Mew</div>
             <div class="opt-desc">Only the original 151 Pokémon (#1–151)</div>
           </div>
         </label>
         <label class="option">
-          <input type="radio" name="genFilter" id="gen2Only">
+          <input type="radio" name="genFilter" id="gen2Only" value="gen2">
           <div class="option-group">
             <div class="opt-label">Gen 2 only &mdash; Chikorita through Celebi</div>
             <div class="opt-desc">Only the Johto Pokémon (#152–251)</div>
@@ -959,7 +959,7 @@
         <div class="section-title">Field Items</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
           Field items are items found in the overworld — visible Pokéball sprites on the ground
-          and hidden items found with the Itemfinder. Key items and HMs are never replaced.
+          and hidden items found with the Itemfinder. Key items and HMs are never moved or replaced, so the game always stays beatable.
         </p>
 
         <label class="option">
@@ -1159,6 +1159,7 @@
           <div class="spinner" id="spinner"></div>
           <div class="status-text" id="statusText">Ready — set your source &amp; output directories above, then click Randomize.</div>
         </div>
+        <div id="resultBox" class="plr-result" style="display:none"></div>
       </div>
 
     </div>
@@ -1218,7 +1219,9 @@
           <div class="step-body">
             <h3>Get the Crystal Legacy source code</h3>
             <p>Open Terminal and run:</p>
-            <p><code>git clone https://github.com/cRz-Shadows/Pokemon_Crystal_Legacy</code></p>
+            <p>Easiest: click <strong>⬇ Get source</strong> next to the Source Directory field. It downloads the source into <code>~/Pokemon Legacy Sources/Pokemon_Crystal_Legacy</code> and fills the field in for you.</p>
+            <p>Or clone it yourself in Terminal: <code>git clone https://github.com/cRz-Shadows/Pokemon_Crystal_Legacy</code></p>
+            <p>This is the hack's <em>source code</em>, not a ROM. The randomizer can't use a <code>.gbc</code>/<code>.gba</code> file.</p>
             <p>This creates a <code>Pokemon_Crystal_Legacy</code> folder — that's your <strong>Source Directory</strong>. Never modify files inside it; the randomizer reads from it and writes to a separate output folder.</p>
           </div>
         </div>
@@ -1230,6 +1233,7 @@
             <p>Only Apple's command-line tools are needed for <code>make</code>. In Terminal:</p>
             <p><code>xcode-select --install</code></p>
             <div class="how-note">✅ <strong>RGBDS is handled for you.</strong> On your first build the app automatically downloads RGBDS v0.5.2 (the exact version Crystal Legacy needs) into its own cache — no manual install, no version conflicts with other games.</div>
+            <div class="how-note">🍎 <strong>Apple Silicon Mac?</strong> The RGBDS version this game needs is an Intel app, so it needs Rosetta 2. If the build stops with a Rosetta message, open Terminal, run <code>softwareupdate --install-rosetta --agree-to-license</code>, then click Randomize again.</div>
           </div>
         </div>
 
@@ -1237,7 +1241,7 @@
           <div class="step-num">3</div>
           <div class="step-body">
             <h3>Create an Output Directory</h3>
-            <p>Make a new empty folder anywhere on your Mac — for example <code>~/Desktop/CLRando_Output</code>. This is where the randomized source files are written. <strong>It is fully overwritten on every run</strong>, so don't store anything important here.</p>
+            <p>Make a new empty folder anywhere on your Mac — for example <code>~/Desktop/CLRando_Output</code>. This is where the randomized source files are written. <strong>It is wiped and rewritten on every run</strong>, so don't store anything else in it. For safety the app refuses to use a folder that already has other files in it, unless it's a folder from a previous randomizer run.</p>
           </div>
         </div>
       </div>
@@ -1365,7 +1369,7 @@
           <div class="how-ref-icon">🎒</div>
           <div class="how-ref-body">
             <strong>Items</strong>
-            <p>Controls overworld items — both visible Pokéball sprites and hidden items found with the Itemfinder. Key items and HMs are never replaced.</p>
+            <p>Controls overworld items — both visible Pokéball sprites and hidden items found with the Itemfinder. Key items and HMs are never moved or replaced, so the game always stays beatable.</p>
             <p><em>Shuffle</em> — the same set of items is redistributed across locations (every item still exists, just in a different spot). <em>Random</em> — each location independently gets a random item. <em>Random (Evenly Distribute)</em> — all items in the pool appear as close to equally often as possible.</p>
             <p><em>Ban Bad Items</em> — excludes cheap/situational items (basic Potions, Antidotes, plain Repel) so every replaced item is at least somewhat useful. Applies to Random and Even modes only.</p>
           </div>
@@ -1392,9 +1396,9 @@
         <div class="section-title">Tips &amp; Notes</div>
         <ul class="how-tip-list">
           <li><strong>The Source Directory is never modified.</strong> The randomizer copies the entire source to the Output Directory first, then applies all changes there. Your original Crystal Legacy source stays clean.</li>
-          <li><strong>The Output Directory is overwritten completely on every run.</strong> Don't store anything important in it — only keep your saved <code>.gbc</code> files, which you place elsewhere via the save dialog.</li>
+          <li><strong>The Output Directory is wiped on every run.</strong> Keep only randomizer output in it. Your built <code>.gbc</code> goes wherever you choose in the save dialog.</li>
           <li><strong>Recommended settings for a fun randomized run:</strong> Wild = Random, Trainers = Random, Full HM Compatibility = ON. These give the best experience without making the game impossible to complete.</li>
-          <li><strong>RGBDS version matters.</strong> Only v0.5.2 works. If you see assembler errors mentioning <code>MAJOR</code> or undefined macros, you have a newer RGBDS installed. Replace it with v0.5.2.</li>
+          <li><strong>RGBDS is handled for you.</strong> The app downloads exactly v0.5.2 into its own cache, separate from any RGBDS you installed yourself. On Apple Silicon it needs Rosetta 2; if it's missing the app tells you the one-line fix.</li>
           <li><strong>The log panel shows exactly what changed.</strong> Click <em>▶ Show Log</em> at the bottom of the window to see every species replacement, item change, and compiler line. If the build fails, the error will appear there.</li>
           <li><strong>Playing without a real-time clock?</strong> Most emulators need to be configured with a clock, or use one that supports it (mGBA does). If you play without a clock, uncheck <em>Use Time-Based Encounters</em> so morning/day/night slots all show the same Pokémon.</li>
           <li><strong>The .gbc file</strong> works in any GBC-compatible emulator (mGBA, BGB, RetroArch) and on real hardware via an EZ-Flash or similar flash cartridge.</li>
@@ -1654,146 +1658,26 @@ function toggleLog() {
   document.getElementById('logToggle').textContent = logVisible ? '▼ Hide Log' : '▶ Show Log';
 }
 
-let logOffset = 0;
-function appendLog(lines) {
-  const box = document.getElementById('log-box');
-  lines.forEach(l => { box.textContent += l + '\n'; });
-  box.scrollTop = box.scrollHeight;
-}
-
 // ---------------------------------------------------------------------------
-// Randomize
+// Randomize — the payload is exactly what Save Settings writes (plus the
+// directories and seed), so settings_used.json always round-trips.
+// Log streaming, status, and the result panel live in common.js (PLR).
 // ---------------------------------------------------------------------------
-let polling = false;
-
 async function startRandomize() {
-  const src = document.getElementById('srcDir').value.trim();
-  const out = document.getElementById('outDir').value.trim();
+  const src  = document.getElementById('srcDir').value.trim();
+  const out  = document.getElementById('outDir').value.trim();
   const seed = document.getElementById('seed').value.trim();
 
   if (!src) { alert('Please set a Source Directory.'); return; }
   if (!out) { alert('Please set an Output Directory.'); return; }
   if (src === out) { alert('Source and Output must be different directories.'); return; }
 
-  // Gather settings
-  const genFilter = document.getElementById('gen1Only').checked ? 'gen1'
-                  : document.getElementById('gen2Only').checked ? 'gen2'
-                  : 'all';
+  const s = gatherSettings();
+  // Disabled features send empty lists so nothing is injected by accident.
+  if (!s.startingItemsEnable) { s.startingBagItems = []; s.startingPCItems = []; }
+  if (!s.pcPokemonEnable)      { s.pcPokemon = []; }
 
-  const starterMode = document.querySelector('input[name="starterMode"]:checked').value;
-  const staticMode  = document.querySelector('input[name="staticMode"]:checked').value;
-
-  const payload = {
-    sourceDir: src,
-    outputDir: out,
-    seed: seed,
-    genFilter,                                                    // global — applies to all tabs
-    easierEvolutions:     document.getElementById('easierEvolutions').checked,
-    removeTimeEvolutions: document.getElementById('removeTimeEvolutions').checked,
-    fullHMCompat:         document.getElementById('fullHMCompat').checked,
-    starterMode,                                                  // 'unchanged'|'custom'|'random'|'random_two_stage'
-    customStarters:     [0,1,2].map(i => { const v = _getStarterConst(i); return v ? SPECIES_CONSTS.indexOf(v) + 1 : 0; }),
-    starterRandItems:   document.getElementById('starterRandItems').checked,
-    starterBanBadItems: document.getElementById('starterBanBadItems').checked,
-    tradeMode:          document.querySelector('input[name="tradeMode"]:checked').value,
-    tradeRandNicknames: document.getElementById('tradeRandNicknames').checked,
-    tradeRandOT:        document.getElementById('tradeRandOT').checked,
-    tradeRandIVs:       document.getElementById('tradeRandIVs').checked,
-    tradeRandItems:     document.getElementById('tradeRandItems').checked,
-    staticMode,                                                   // 'unchanged'|'swap'|'random'|'similar_strength'
-    wildMode:            document.querySelector('input[name="wildMode"]:checked').value,
-    wildRule:            document.querySelector('input[name="wildRule"]:checked').value,
-    wildTimeBased:       document.getElementById('wildTimeBased').checked,
-    wildNoLegendaries:   document.getElementById('wildNoLegendaries').checked,
-    wildRandHeldItems:        document.getElementById('wildRandHeldItems').checked,
-    wildBanBadHeldItems:      document.getElementById('wildBanBadHeldItems').checked,
-    trainerMode:              document.querySelector('input[name="trainerMode"]:checked').value,
-    trainerRivalStarter:      document.getElementById('trainerRivalStarter').checked,
-    trainerSimilarStrength:   document.getElementById('trainerSimilarStrength').checked,
-    trainerNoLegend:          document.getElementById('trainerNoLegend').checked,
-    trainerWeightTypes:       document.getElementById('trainerWeightTypes').checked,
-    trainerForceEvolved:      document.getElementById('trainerForceEvolved').checked,
-    trainerForceEvoLevel:     parseInt(document.getElementById('trainerForceEvoLevel').value),
-    fieldItemsMode:           document.querySelector('input[name="fieldItemsMode"]:checked').value,
-    fieldItemsBanBad:         document.getElementById('fieldItemsBanBad').checked,
-    zeroGrinding:             document.getElementById('zeroGrinding').checked,
-    elite4Prep:               document.getElementById('elite4Prep').checked,
-    buildRom:                 document.getElementById('buildRom').checked,
-    // Starting items — only send if the feature is enabled
-    startingBagItems: document.getElementById('startingItemsEnable').checked
-                        ? _gatherItemRows('bagItemList') : [],
-    startingPCItems:  document.getElementById('startingItemsEnable').checked
-                        ? _gatherItemRows('pcItemList')  : [],
-    // PC Pokémon — only send if enabled
-    pcPokemonEnable: document.getElementById('pcPokemonEnable').checked,
-    pcPokemon: document.getElementById('pcPokemonEnable').checked
-                 ? _gatherPCMons() : [],
-  };
-
-  // Reset UI
-  document.getElementById('log-box').textContent = '';
-  logOffset = 0;
-  if (!logVisible) toggleLog();
-
-  document.getElementById('randBtn').disabled = true;
-  document.getElementById('spinner').style.display = 'block';
-  setStatus(payload.buildRom ? 'Randomizing & building ROM…' : 'Randomizing…');
-
-  try {
-    const res = await fetch('/api/randomize', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!data.ok) { alert('Error: ' + data.error); resetUI(); return; }
-  } catch(e) { alert('Server error: ' + e); resetUI(); return; }
-
-  // Poll for log + status
-  polling = true;
-  pollStatus();
-}
-
-async function pollStatus() {
-  if (!polling) return;
-  try {
-    const [logRes, statusRes] = await Promise.all([
-      fetch('/api/log?since=' + logOffset),
-      fetch('/api/status'),
-    ]);
-    const logData    = await logRes.json();
-    const statusData = await statusRes.json();
-
-    if (logData.lines.length > 0) {
-      appendLog(logData.lines);
-      logOffset = logData.total;
-    }
-
-    if (statusData.done) {
-      polling = false;
-      resetUI();
-      if (statusData.error) {
-        setStatus('Error: ' + statusData.error, true);
-      } else {
-        const built = document.getElementById('buildRom').checked;
-      setStatus(built ? 'Done! ✅  ROM built — check the log for the output path.'
-                      : 'Done! ✅  Source saved — open Terminal in the output folder and run: make');
-      }
-      return;
-    }
-  } catch(e) { /* server may be momentarily busy */ }
-
-  setTimeout(pollStatus, 800);
-}
-
-function resetUI() {
-  document.getElementById('randBtn').disabled = false;
-  document.getElementById('spinner').style.display = 'none';
-}
-function setStatus(msg, isError) {
-  const el = document.getElementById('statusText');
-  el.textContent = msg;
-  el.style.color = isError ? 'var(--red)' : 'var(--muted)';
+  await PLR.begin('/api/randomize', { sourceDir: src, outputDir: out, seed, ...s });
 }
 
 // ---------------------------------------------------------------------------
@@ -2950,12 +2834,22 @@ const PRESETS = {
 function updateConflictWarnings() {
   const w = [];
   const gen  = document.querySelector('input[name="genFilter"]:checked')?.value;
+  const wm   = document.querySelector('input[name="wildMode"]:checked')?.value;
   const rule = document.querySelector('input[name="wildRule"]:checked')?.value;
   const sm   = document.querySelector('input[name="starterMode"]:checked')?.value;
+  const tm   = document.querySelector('input[name="trainerMode"]:checked')?.value;
   if (gen && gen !== 'all' && rule === 'catch_em_all')
     w.push("Catch-'Em-All with a generation filter may not have enough species to fill every wild slot.");
+  if (wm !== 'unchanged' && wm !== 'random' && rule === 'catch_em_all')
+    w.push("Catch-'Em-All only applies to the plain Random wild mode — with a 1-to-1 mapping it is ignored.");
   if (sm === 'custom' && [0,1,2].some(i => !_getStarterConst(i)))
-    w.push('Custom starters selected but not all three are chosen — empty slots keep the original starter.');
+    w.push('Custom starters selected but not all three are chosen — the run will keep the original starters.');
+  if (document.getElementById('trainerRivalStarter')?.checked && tm === 'unchanged')
+    w.push('Rival Carries Starter needs trainers to be randomized — with Trainers = Unchanged it does nothing.');
+  const empties = Array.from(document.querySelectorAll('#pcMonList .pc-mon-card'))
+    .filter(c => !c.querySelector('.species-const-value')?.value).length;
+  if (document.getElementById('pcPokemonEnable')?.checked && empties)
+    w.push(empties + ' PC Pokémon row(s) have no species selected — they will be skipped.');
   renderConflicts(w);
 }
 
